@@ -55,6 +55,12 @@ const doctorSchema = new mongoose.Schema(
       default: "",
     },
 
+    // ✅ Consultation Mode
+    consultationType: {
+      type: [String],
+      default: ["video", "audio", "clinic"],
+    },
+
     available: {
       type: Boolean,
       default: true,
