@@ -25,6 +25,7 @@ app.use(express.urlencoded({ extended: true }));
 app.use("/api/auth", require("./routes/auth"));
 app.use("/api/doctors", require("./routes/doctors"));
 app.use("/api/appointments", require("./routes/appointments"));
+ 
 
 app.get("/", (req, res) => {
   res.json({ message: "Dr. Sharma Backend is running!" });

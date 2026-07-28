@@ -1,10 +1,12 @@
 const Appointment = require("../models/Appointment");
+const Doctor = require("../models/Doctor");
 
+// =========================
 // Book Appointment
+// =========================
 const bookAppointment = async (req, res) => {
   try {
-    console.log("Appointment Request:");
-    console.log(req.body);
+    console.log("Appointment Request:", req.body);
 
     const appointment = await Appointment.create(req.body);
 
@@ -13,7 +15,7 @@ const bookAppointment = async (req, res) => {
       appointment,
     });
   } catch (error) {
-    console.log(error);
+    console.error(error);
 
     res.status(500).json({
       success: false,
@@ -21,18 +23,25 @@ const bookAppointment = async (req, res) => {
     });
   }
 };
+
+// =========================
 // Patient Appointments
+// =========================
 const patientAppointments = async (req, res) => {
   try {
     const appointments = await Appointment.find({
       patient: req.params.id,
-    }).populate("doctor");
+    })
+      .populate("doctor")
+      .sort({ appointmentDate: -1 });
 
-    res.json({
+    res.status(200).json({
       success: true,
       appointments,
     });
   } catch (error) {
+    console.error(error);
+
     res.status(500).json({
       success: false,
       message: error.message,
@@ -40,18 +49,42 @@ const patientAppointments = async (req, res) => {
   }
 };
 
+// =========================
 // Doctor Appointments
+// =========================
 const doctorAppointments = async (req, res) => {
   try {
-    const appointments = await Appointment.find({
-      doctor: req.params.id,
-    }).populate("patient");
+    console.log("Logged User ID:", req.params.id);
 
-    res.json({
+    // Find doctor profile using logged-in User ID
+    const doctor = await Doctor.findOne({
+      user: req.params.id,
+    });
+
+    if (!doctor) {
+      return res.status(404).json({
+        success: false,
+        message: "Doctor profile not found.",
+      });
+    }
+
+    console.log("Doctor Profile:", doctor._id);
+
+    const appointments = await Appointment.find({
+      doctor: doctor._id,
+    })
+      .populate("patient")
+      .sort({ appointmentDate: -1 });
+
+    console.log("Appointments:", appointments);
+
+    res.status(200).json({
       success: true,
       appointments,
     });
   } catch (error) {
+    console.error(error);
+
     res.status(500).json({
       success: false,
       message: error.message,
@@ -59,20 +92,26 @@ const doctorAppointments = async (req, res) => {
   }
 };
 
+// =========================
 // Update Appointment
+// =========================
 const updateAppointment = async (req, res) => {
   try {
     const appointment = await Appointment.findByIdAndUpdate(
       req.params.id,
       req.body,
-      { new: true }
+      {
+        new: true,
+      }
     );
 
-    res.json({
+    res.status(200).json({
       success: true,
       appointment,
     });
   } catch (error) {
+    console.error(error);
+
     res.status(500).json({
       success: false,
       message: error.message,
@@ -80,8 +119,9 @@ const updateAppointment = async (req, res) => {
   }
 };
 
+// =========================
 // Cancel Appointment
-
+// =========================
 const cancelAppointment = async (req, res) => {
   try {
     const appointment = await Appointment.findByIdAndUpdate(
@@ -94,17 +134,20 @@ const cancelAppointment = async (req, res) => {
       }
     );
 
-    res.json({
+    res.status(200).json({
       success: true,
       appointment,
     });
   } catch (error) {
+    console.error(error);
+
     res.status(500).json({
       success: false,
       message: error.message,
     });
   }
 };
+
 module.exports = {
   bookAppointment,
   patientAppointments,

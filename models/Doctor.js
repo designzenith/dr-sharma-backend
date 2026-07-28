@@ -2,6 +2,14 @@ const mongoose = require("mongoose");
 
 const doctorSchema = new mongoose.Schema(
   {
+    // Link Doctor with User Login
+    user: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      required: true,
+      unique: true,
+    },
+
     name: {
       type: String,
       required: true,
@@ -40,14 +48,17 @@ const doctorSchema = new mongoose.Schema(
 
     hospital: {
       type: String,
+      default: "",
     },
 
     address: {
       type: String,
+      default: "",
     },
 
     about: {
       type: String,
+      default: "",
     },
 
     image: {
@@ -55,7 +66,6 @@ const doctorSchema = new mongoose.Schema(
       default: "",
     },
 
-    // ✅ Consultation Mode
     consultationType: {
       type: [String],
       default: ["video", "audio", "clinic"],
