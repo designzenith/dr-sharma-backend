@@ -1,84 +1,97 @@
 const mongoose = require("mongoose");
 
+
 const doctorSchema = new mongoose.Schema(
-  {
-    // Link Doctor with User Login
-    user: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "User",
-      required: true,
-      unique: true,
-    },
+{
 
-    name: {
-      type: String,
-      required: true,
-    },
+user:{
+    type:mongoose.Schema.Types.ObjectId,
+    ref:"User",
+    required:true,
+},
 
-    email: {
-      type: String,
-      required: true,
-      unique: true,
-    },
 
-    phone: {
-      type: String,
-      required: true,
-    },
+name:{
+    type:String,
+    required:true,
+},
 
-    specialization: {
-      type: String,
-      required: true,
-    },
 
-    qualification: {
-      type: String,
-      required: true,
-    },
+email:{
+    type:String,
+},
 
-    experience: {
-      type: Number,
-      required: true,
-    },
 
-    consultationFee: {
-      type: Number,
-      required: true,
-    },
+phone:{
+    type:String,
+},
 
-    hospital: {
-      type: String,
-      default: "",
-    },
 
-    address: {
-      type: String,
-      default: "",
-    },
+specialization:{
+    type:String,
+},
 
-    about: {
-      type: String,
-      default: "",
-    },
 
-    image: {
-      type: String,
-      default: "",
-    },
+qualification:{
+    type:String,
+},
 
-    consultationType: {
-      type: [String],
-      default: ["video", "audio", "clinic"],
-    },
 
-    available: {
-      type: Boolean,
-      default: true,
-    },
-  },
-  {
-    timestamps: true,
-  }
+experience:{
+    type:String,
+},
+
+
+consultationFee:{
+    type:Number,
+},
+
+
+hospital:{
+    type:String,
+},
+
+
+address:{
+    type:String,
+},
+
+
+about:{
+    type:String,
+},
+
+
+image:{
+    type:String,
+},
+
+
+consultationType:{
+    type:String,
+    enum:[
+        "video",
+        "audio",
+        "clinic"
+    ],
+    default:"video"
+},
+
+
+available:{
+    type:Boolean,
+    default:true
+},
+
+
+},
+{
+timestamps:true
+}
 );
 
-module.exports = mongoose.model("Doctor", doctorSchema);
+
+module.exports = mongoose.model(
+"Doctor",
+doctorSchema
+);

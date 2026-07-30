@@ -30,15 +30,38 @@ const appointmentSchema = new mongoose.Schema(
       default: "video",
     },
 
+    // Unique room id for Video/Audio Call
+    roomId: {
+      type: String,
+      unique: true,
+      sparse: true,
+    },
+
     status: {
       type: String,
-      enum: ["Pending", "Confirmed", "Completed", "Cancelled"],
+      enum: ["Pending", "Confirmed", "In Progress", "Completed", "Cancelled"],
       default: "Pending",
+    },
+
+    // Call start time
+    callStartedAt: {
+      type: Date,
+    },
+
+    // Call end time
+    callEndedAt: {
+      type: Date,
+    },
+
+    // Duration in minutes
+    duration: {
+      type: Number,
+      default: 0,
     },
   },
   {
     timestamps: true,
-  }
+  },
 );
 
 module.exports = mongoose.model("Appointment", appointmentSchema);
