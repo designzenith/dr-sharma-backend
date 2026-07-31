@@ -1,429 +1,299 @@
 const Doctor = require("../models/Doctor");
 
-
 // ==============================
 // Add Doctor
 // ==============================
 
-const addDoctor = async(req,res)=>{
+const addDoctor = async (req, res) => {
+  try {
+    const doctor = await Doctor.create({
+      user: req.body.user,
 
-try{
+      name: req.body.name,
 
+      email: req.body.email,
 
-const doctor = await Doctor.create({
+      phone: req.body.phone,
 
-user:req.body.user,
+      specialization: req.body.specialization,
 
-name:req.body.name,
+      qualification: req.body.qualification,
 
-email:req.body.email,
+      experience: req.body.experience,
 
-phone:req.body.phone,
+      consultationFee: req.body.consultationFee,
 
-specialization:req.body.specialization,
+      hospital: req.body.hospital,
 
-qualification:req.body.qualification,
+      address: req.body.address,
 
-experience:req.body.experience,
+      about: req.body.about,
 
-consultationFee:req.body.consultationFee,
+      image: req.body.image,
 
-hospital:req.body.hospital,
+      consultationType: req.body.consultationType,
 
-address:req.body.address,
+      available: req.body.available,
+    });
 
-about:req.body.about,
+    res.status(201).json({
+      success: true,
 
-image:req.body.image,
+      message: "Doctor created successfully",
 
-consultationType:req.body.consultationType,
+      doctor,
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
 
-available:req.body.available,
-
-
-});
-
-
-res.status(201).json({
-
-success:true,
-
-message:"Doctor created successfully",
-
-doctor
-
-});
-
-
-}catch(error){
-
-res.status(500).json({
-
-success:false,
-
-message:error.message
-
-});
-
-}
-
+      message: error.message,
+    });
+  }
 };
-
-
-
-
 
 // ==============================
 // Get All Doctors
 // ==============================
 
-const getDoctors = async(req,res)=>{
+const getDoctors = async (req, res) => {
+  try {
+    const doctors = await Doctor.find()
+      .populate("user", "name email phone")
+      .sort({
+        createdAt: -1,
+      });
 
-try{
+    res.json({
+      success: true,
 
+      doctors,
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
 
-const doctors =
-await Doctor.find()
-.populate(
-"user",
-"name email phone"
-)
-.sort({
-createdAt:-1
-});
-
-
-res.json({
-
-success:true,
-
-doctors
-
-});
-
-
-}catch(error){
-
-res.status(500).json({
-
-success:false,
-
-message:error.message
-
-});
-
-}
-
+      message: error.message,
+    });
+  }
 };
-
-
-
-
-
 
 // ==============================
 // Get Doctor By ID
 // ==============================
 
-const getDoctor = async(req,res)=>{
+const getDoctor = async (req, res) => {
+  try {
+    const doctor = await Doctor.findById(req.params.id).populate(
+      "user",
+      "name email phone",
+    );
 
-try{
+    if (!doctor) {
+      return res.status(404).json({
+        success: false,
 
+        message: "Doctor not found",
+      });
+    }
 
-const doctor =
-await Doctor.findById(req.params.id)
-.populate(
-"user",
-"name email phone"
-);
+    res.json({
+      success: true,
 
+      doctor,
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
 
-
-if(!doctor){
-
-return res.status(404).json({
-
-success:false,
-
-message:"Doctor not found"
-
-});
-
-}
-
-
-
-res.json({
-
-success:true,
-
-doctor
-
-});
-
-
-}catch(error){
-
-res.status(500).json({
-
-success:false,
-
-message:error.message
-
-});
-
-}
-
+      message: error.message,
+    });
+  }
 };
-
-
-
-
-
-
 
 // ==============================
 // Get Logged Doctor Profile
 // ==============================
 
-const getMyDoctorProfile = async(req,res)=>{
+const getMyDoctorProfile = async (req, res) => {
+  try {
+    const doctor = await Doctor.findOne({
+      user: req.user._id,
+    }).populate("user", "name email phone");
 
-try{
+    if (!doctor) {
+      return res.status(404).json({
+        success: false,
 
+        message: "Doctor profile not found",
+      });
+    }
 
-const doctor =
-await Doctor.findOne({
+    res.json({
+      success: true,
 
-user:req.user._id
+      doctor,
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
 
-})
-.populate(
-"user",
-"name email phone"
-);
-
-
-
-if(!doctor){
-
-return res.status(404).json({
-
-success:false,
-
-message:"Doctor profile not found"
-
-});
-
-}
-
-
-
-res.json({
-
-success:true,
-
-doctor
-
-});
-
-
-}catch(error){
-
-res.status(500).json({
-
-success:false,
-
-message:error.message
-
-});
-
-}
-
+      message: error.message,
+    });
+  }
 };
-
-
-
-
-
-
 
 // ==============================
 // Update Doctor
 // ==============================
 
-const updateDoctor = async(req,res)=>{
+const updateDoctor = async (req, res) => {
+  try {
+    const doctor = await Doctor.findOneAndUpdate(
+      {
+        user: req.user._id,
+      },
 
-try{
+      req.body,
 
+      {
+        new: true,
+        runValidators: true,
+      },
+    );
 
-const doctor =
-await Doctor.findOneAndUpdate(
+    res.json({
+      success: true,
 
-{
-user:req.user._id
-},
+      message: "Doctor updated",
 
-req.body,
+      doctor,
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
 
-{
-new:true,
-runValidators:true
-}
-
-);
-
-
-
-res.json({
-
-success:true,
-
-message:"Doctor updated",
-
-doctor
-
-});
-
-
-}catch(error){
-
-res.status(500).json({
-
-success:false,
-
-message:error.message
-
-});
-
-}
-
+      message: error.message,
+    });
+  }
 };
-
-
-
-
-
-
 
 // ==============================
 // Delete Doctor
 // ==============================
 
-const deleteDoctor = async(req,res)=>{
+const deleteDoctor = async (req, res) => {
+  try {
+    await Doctor.findOneAndDelete({
+      user: req.user._id,
+    });
 
-try{
+    res.json({
+      success: true,
 
+      message: "Doctor deleted",
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
 
-await Doctor.findOneAndDelete({
-
-user:req.user._id
-
-});
-
-
-
-res.json({
-
-success:true,
-
-message:"Doctor deleted"
-
-});
-
-
-}catch(error){
-
-res.status(500).json({
-
-success:false,
-
-message:error.message
-
-});
-
-}
-
-};
-// ==============================
-// Get Specializations
-// ==============================
-
-const getSpecializations = async(req,res)=>{
-
-try{
-
-const specializations = await Doctor.aggregate([
-
-{
-$group:{
-_id:"$specialization",
-count:{
-$sum:1
-}
-}
-},
-
-
-{
-$project:{
-_id:0,
-specialization:"$_id",
-count:1
-}
-},
-
-
-{
-$sort:{
-specialization:1
-}
-}
-
-]);
-
-
-res.json({
-
-success:true,
-
-specializations
-
-});
-
-
-}catch(error){
-
-console.log(error);
-
-res.status(500).json({
-
-success:false,
-
-message:error.message
-
-});
-
-}
-
+      message: error.message,
+    });
+  }
 };
 
+// const getSpecializations = async (req, res) => {
+//   try {
+//     const specializations = await Doctor.aggregate([
+//       {
+//         $group: {
+//           _id: "$specialization",
+//           count: {
+//             $sum: 1,
+//           },
+//         },
+//       },
 
+//       {
+//         $project: {
+//           _id: 0,
+//           specialization: "$_id",
+//           count: 1,
+//         },
+//       },
 
+//       {
+//         $sort: {
+//           specialization: 1,
+//         },
+//       },
+//     ]);
 
+//     res.json({
+//       success: true,
 
-module.exports={
+//       specializations,
+//     });
+//   } catch (error) {
+//     console.log(error);
 
-addDoctor,
+//     res.status(500).json({
+//       success: false,
 
-getDoctors,
+//       message: error.message,
+//     });
+//   }
+// };
+const getSpecializations = async (req, res) => {
+  try {
+    const specializations = await Doctor.aggregate([
+      {
+        $group: {
+          _id: "$specialization",
+          count: { $sum: 1 },
+          icon: { $first: "$icon" },
+        },
+      },
+      {
+        $project: {
+          _id: 0,
+          specialization: "$_id",
+          count: 1,
+          icon: 1,
+        },
+      },
+      {
+        $sort: {
+          specialization: 1,
+        },
+      },
+    ]);
 
-getDoctor,
+    res.json({
+      success: true,
+      specializations,
+    });
+  } catch (error) {
+    console.error(error);
 
-getMyDoctorProfile,
+    res.status(500).json({
+      success: false,
+      message: error.message,
+    });
+  }
+};
 
-updateDoctor,
+module.exports = {
+  addDoctor,
 
-deleteDoctor,
-getSpecializations
+  getDoctors,
 
+  getDoctor,
+
+  getMyDoctorProfile,
+
+  updateDoctor,
+
+  deleteDoctor,
+  getSpecializations,
 };

@@ -1,97 +1,79 @@
 const mongoose = require("mongoose");
 
-
 const doctorSchema = new mongoose.Schema(
-{
+  {
+    user: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      required: true,
+    },
 
-user:{
-    type:mongoose.Schema.Types.ObjectId,
-    ref:"User",
-    required:true,
-},
+    name: {
+      type: String,
+      required: true,
+    },
 
+    email: {
+      type: String,
+    },
 
-name:{
-    type:String,
-    required:true,
-},
+    phone: {
+      type: String,
+    },
 
+   specialization: {
+      type: String,
+      required: true,
+    },
 
-email:{
-    type:String,
-},
+    // Add this field
+    icon: {
+      type: String,
+      default: "🩺",
+    },
 
+    qualification: {
+      type: String,
+    },
 
-phone:{
-    type:String,
-},
+    experience: {
+      type: String,
+    },
 
+    consultationFee: {
+      type: Number,
+    },
 
-specialization:{
-    type:String,
-},
+    hospital: {
+      type: String,
+    },
 
+    address: {
+      type: String,
+    },
 
-qualification:{
-    type:String,
-},
+    about: {
+      type: String,
+    },
 
+    image: {
+      type: String,
+    },
 
-experience:{
-    type:String,
-},
+    consultationType: {
+      type: String,
+      enum: ["video", "audio", "clinic"],
+      default: "video",
+    },
 
-
-consultationFee:{
-    type:Number,
-},
-
-
-hospital:{
-    type:String,
-},
-
-
-address:{
-    type:String,
-},
-
-
-about:{
-    type:String,
-},
-
-
-image:{
-    type:String,
-},
-
-
-consultationType:{
-    type:String,
-    enum:[
-        "video",
-        "audio",
-        "clinic"
-    ],
-    default:"video"
-},
-
-
-available:{
-    type:Boolean,
-    default:true
-},
-
-
-},
-{
-timestamps:true
-}
+    available: {
+      type: Boolean,
+      default: true,
+    },
+  },
+  {
+    timestamps: true,
+  },
 );
 
-
-module.exports = mongoose.model(
-"Doctor",
-doctorSchema
-);
+module.exports = mongoose.model("Doctor", doctorSchema);
