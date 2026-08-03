@@ -333,7 +333,7 @@ await Appointment.findByIdAndUpdate(
 req.params.id,
 
 {
-status:"Rejected"
+status:"Cancelled"
 },
 
 {

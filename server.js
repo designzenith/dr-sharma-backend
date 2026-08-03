@@ -21,13 +21,16 @@ connectDB();
 // ======================
 // Middleware
 // ======================
+
 app.use(
   cors({
-    origin: "http://localhost:3000",
+    origin: [
+      "http://localhost:3000",
+      "https://dr-frontend-azure.vercel.app"
+    ],
     credentials: true,
   })
 );
-
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
