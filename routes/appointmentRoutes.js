@@ -18,9 +18,13 @@ const {
 } = require("../controllers/appointmentController");
 
 
-// ===============================
+// =====================================================
+// PATIENT ROUTES
+// =====================================================
+
+
 // Book Appointment
-// ===============================
+// POST /api/appointments
 router.post(
   "/",
   auth,
@@ -28,9 +32,8 @@ router.post(
 );
 
 
-// ===============================
-// Logged In Patient Appointments
-// ===============================
+// Logged-in Patient Appointments
+// GET /api/appointments/patient
 router.get(
   "/patient",
   auth,
@@ -38,68 +41,17 @@ router.get(
 );
 
 
-// ===============================
-// Patient Appointments By ID
-// ===============================
+// Patient Appointments By User ID
+// GET /api/appointments/patient/:id
 router.get(
   "/patient/:id",
+  auth,
   patientAppointments
 );
 
 
-// ===============================
-// Doctor Appointments
-// ===============================
-router.get(
-  "/doctor/:id",
-  auth,
-  doctorAppointments
-);
-
-
-// ===============================
-// Doctor Accept Appointment
-// ===============================
-router.put(
-  "/accept/:id",
-  auth,
-  acceptAppointment
-);
-
-
-// ===============================
-// Doctor Reject Appointment
-// ===============================
-router.put(
-  "/reject/:id",
-  auth,
-  rejectAppointment
-);
-
-
-// ===============================
-// Get Appointment By Room ID
-// ===============================
-router.get(
-  "/room/:roomId",
-  auth,
-  getAppointmentByRoom
-);
-
-
-// ===============================
-// Update Appointment
-// ===============================
-router.put(
-  "/:id",
-  auth,
-  updateAppointment
-);
-
-
-// ===============================
-// Cancel Appointment
-// ===============================
+// Patient Cancel Appointment
+// PUT /api/appointments/cancel/:id
 router.put(
   "/cancel/:id",
   auth,
@@ -107,23 +59,80 @@ router.put(
 );
 
 
-// ===============================
-// Start Video / Audio Call
-// ===============================
+// =====================================================
+// DOCTOR ROUTES
+// =====================================================
+
+
+// Logged-in Doctor Appointments
+// GET /api/appointments/doctor
+//
+// IMPORTANT:
+// No :id is required.
+// Backend gets doctor from req.user._id.
+router.get(
+  "/doctor",
+  auth,
+  doctorAppointments
+);
+
+
+// Doctor Accept Appointment
+// PUT /api/appointments/:id/accept
 router.put(
-  "/start/:id",
+  "/:id/accept",
+  auth,
+  acceptAppointment
+);
+
+
+// Doctor Reject Appointment
+// PUT /api/appointments/:id/reject
+router.put(
+  "/:id/reject",
+  auth,
+  rejectAppointment
+);
+
+
+// Start Video / Audio Consultation
+// PUT /api/appointments/:id/start
+router.put(
+  "/:id/start",
   auth,
   startCall
 );
 
 
-// ===============================
-// End Video / Audio Call
-// ===============================
+// End Video / Audio Consultation
+// PUT /api/appointments/:id/end
 router.put(
-  "/end/:id",
+  "/:id/end",
   auth,
   endCall
+);
+
+
+// =====================================================
+// APPOINTMENT ROUTES
+// =====================================================
+
+
+// Get Appointment By Room ID
+// GET /api/appointments/room/:roomId
+router.get(
+  "/room/:roomId",
+  auth,
+  getAppointmentByRoom
+);
+
+
+// Update Appointment
+// PUT /api/appointments/:id
+router.put(
+  "/:id",
+  auth,
+  updateAppointment
 );
 
 

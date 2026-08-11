@@ -1,26 +1,47 @@
 const auth = require("./auth");
 
-const patientAuth = (req, res, next) => {
-  // Verify JWT first
-  auth(req, res, () => {
-    try {
-      if (req.user.role !== "patient") {
-        return res.status(403).json({
-          success: false,
-          message: "Access denied. Patient only.",
-        });
-      }
+const patientAuth = async (req, res, next) => {
+  try {
+    // Verify JWT and attach user to req.user
+    await new Promise((resolve, reject) => {
+      auth(req, res, (error) => {
+        if (error) {
+          reject(error);
+        } else {
+          resolve();
+        }
+      });
+    });
 
-      next();
-    } catch (error) {
-      console.error("PATIENT AUTH ERROR:", error);
-
-      return res.status(500).json({
+    // Make sure user exists
+    if (!req.user) {
+      return res.status(401).json({
         success: false,
-        message: "Authorization failed.",
+        message: "Unauthorized",
       });
     }
-  });
+
+    // Patient only
+    if (req.user.role !== "patient") {
+      return res.status(403).json({
+        success: false,
+        message: "Access denied. Patient only.",
+      });
+    }
+
+    next();
+
+  } catch (error) {
+    console.error(
+      "PATIENT AUTH ERROR:",
+      error
+    );
+
+    return res.status(401).json({
+      success: false,
+      message: "Authorization failed.",
+    });
+  }
 };
 
 module.exports = patientAuth;

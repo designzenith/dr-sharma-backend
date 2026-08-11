@@ -1,59 +1,41 @@
-const mongoose = require("mongoose");
+const addTimeSlot = async (req, res) => {
+  try {
+    const doctor = await getDoctor(req.user._id);
 
-// =====================================
-// Time Slot Schema
-// =====================================
-const timeSlotSchema = new mongoose.Schema(
-  {
-    startTime: {
-      type: String,
-      required: true,
-    },
+    if (!doctor) {
+      return res.status(404).json({
+        success: false,
+        message: "Doctor profile not found",
+      });
+    }
 
-    endTime: {
-      type: String,
-      required: true,
-    },
+    const {
+      day,
+      startTime,
+      endTime,
+      consultationType,
+      maxPatients,
+      slotDuration,
+    } = req.body;
 
-    consultationType: {
-      type: String,
-      enum: ["video", "audio", "clinic"],
-      default: "video",
-    },
+    // -----------------------------------
+    // Validation
+    // -----------------------------------
 
-    isBooked: {
-      type: Boolean,
-      default: false,
-    },
+    if (
+      !day ||
+      !startTime ||
+      !endTime
+    ) {
+      return res.status(400).json({
+        success: false,
+        message:
+          "Day, start time and end time are required",
+      });
+    }
 
-    maxPatients: {
-      type: Number,
-      default: 1,
-    },
-
-    slotDuration: {
-      type: Number,
-      default: 30, // Minutes
-    },
-
-    isActive: {
-      type: Boolean,
-      default: true,
-    },
-  },
-  {
-    timestamps: false,
-  }
-);
-
-// =====================================
-// Weekly Day Schema
-// =====================================
-const daySchema = new mongoose.Schema(
-  {
-    day: {
-      type: String,
-      enum: [
+    if (
+      ![
         "Monday",
         "Tuesday",
         "Wednesday",
@@ -61,106 +43,177 @@ const daySchema = new mongoose.Schema(
         "Friday",
         "Saturday",
         "Sunday",
-      ],
-      required: true,
-    },
+      ].includes(day)
+    ) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid day",
+      });
+    }
 
-    isAvailable: {
-      type: Boolean,
-      default: true,
-    },
+    if (
+      !["video", "audio", "clinic"].includes(
+        consultationType
+      )
+    ) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid consultation type",
+      });
+    }
 
-    breakStart: {
-      type: String,
-      default: "",
-    },
+    // -----------------------------------
+    // Time Validation
+    // -----------------------------------
 
-    breakEnd: {
-      type: String,
-      default: "",
-    },
+    if (startTime >= endTime) {
+      return res.status(400).json({
+        success: false,
+        message:
+          "End time must be later than start time",
+      });
+    }
 
-    slots: {
-      type: [timeSlotSchema],
-      default: [],
-    },
-  },
-  {
-    _id: false,
+    // -----------------------------------
+    // Find Schedule
+    // -----------------------------------
+
+    const schedule =
+      await Schedule.findOne({
+        doctor: doctor._id,
+      });
+
+    if (!schedule) {
+      return res.status(404).json({
+        success: false,
+        message:
+          "Schedule not found. Please load your schedule first.",
+      });
+    }
+
+    // -----------------------------------
+    // Find Day
+    // -----------------------------------
+
+    const dayData =
+      schedule.weeklySchedule.find(
+        (item) => item.day === day
+      );
+
+    if (!dayData) {
+      return res.status(404).json({
+        success: false,
+        message: "Day not found",
+      });
+    }
+
+    // -----------------------------------
+    // Check Day Availability
+    // -----------------------------------
+
+    if (!dayData.isAvailable) {
+      return res.status(400).json({
+        success: false,
+        message:
+          `${day} is currently unavailable`,
+      });
+    }
+
+    // -----------------------------------
+    // Check Break
+    // -----------------------------------
+
+    if (
+      dayData.breakStart &&
+      dayData.breakEnd
+    ) {
+      const overlapsBreak =
+        startTime < dayData.breakEnd &&
+        endTime > dayData.breakStart;
+
+      if (overlapsBreak) {
+        return res.status(400).json({
+          success: false,
+          message:
+            "This slot overlaps with your break time",
+        });
+      }
+    }
+
+    // -----------------------------------
+    // Check Overlapping Slots
+    // -----------------------------------
+
+    const overlappingSlot =
+      dayData.slots.find((slot) => {
+        return (
+          startTime < slot.endTime &&
+          endTime > slot.startTime
+        );
+      });
+
+    if (overlappingSlot) {
+      return res.status(400).json({
+        success: false,
+        message:
+          `Slot overlaps with ${overlappingSlot.startTime} - ${overlappingSlot.endTime}`,
+      });
+    }
+
+    // -----------------------------------
+    // Add Slot
+    // -----------------------------------
+
+    dayData.slots.push({
+      startTime,
+      endTime,
+
+      consultationType:
+        consultationType || "video",
+
+      isBooked: false,
+
+      maxPatients:
+        Number(maxPatients) > 0
+          ? Number(maxPatients)
+          : 1,
+
+      slotDuration:
+        Number(slotDuration) > 0
+          ? Number(slotDuration)
+          : 30,
+
+      isActive: true,
+    });
+
+    // -----------------------------------
+    // Sort Slots
+    // -----------------------------------
+
+    dayData.slots.sort(
+      (a, b) =>
+        a.startTime.localeCompare(
+          b.startTime
+        )
+    );
+
+    await schedule.save();
+
+    return res.json({
+      success: true,
+      message:
+        "Time slot added successfully",
+      schedule,
+    });
+  } catch (error) {
+    console.error(
+      "Add time slot error:",
+      error
+    );
+
+    return res.status(500).json({
+      success: false,
+      message: error.message,
+    });
   }
-);
-
-// =====================================
-// Schedule Schema
-// =====================================
-const scheduleSchema = new mongoose.Schema(
-  {
-    doctor: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "Doctor",
-      required: true,
-      unique: true,
-      index: true,
-    },
-
-    weeklySchedule: {
-      type: [daySchema],
-      default: [
-        {
-          day: "Monday",
-          isAvailable: true,
-          breakStart: "",
-          breakEnd: "",
-          slots: [],
-        },
-        {
-          day: "Tuesday",
-          isAvailable: true,
-          breakStart: "",
-          breakEnd: "",
-          slots: [],
-        },
-        {
-          day: "Wednesday",
-          isAvailable: true,
-          breakStart: "",
-          breakEnd: "",
-          slots: [],
-        },
-        {
-          day: "Thursday",
-          isAvailable: true,
-          breakStart: "",
-          breakEnd: "",
-          slots: [],
-        },
-        {
-          day: "Friday",
-          isAvailable: true,
-          breakStart: "",
-          breakEnd: "",
-          slots: [],
-        },
-        {
-          day: "Saturday",
-          isAvailable: true,
-          breakStart: "",
-          breakEnd: "",
-          slots: [],
-        },
-        {
-          day: "Sunday",
-          isAvailable: false,
-          breakStart: "",
-          breakEnd: "",
-          slots: [],
-        },
-      ],
-    },
-  },
-  {
-    timestamps: true,
-  }
-);
-
-module.exports = mongoose.model("Schedule", scheduleSchema);
+};

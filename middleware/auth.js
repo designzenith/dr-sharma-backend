@@ -1,103 +1,68 @@
 const jwt = require("jsonwebtoken");
 const User = require("../models/User");
 
+const auth = async (req, res, next) => {
+  try {
+    const authHeader = req.headers.authorization;
 
-module.exports = async (req,res,next)=>{
+    // Check Authorization header
+    if (!authHeader || !authHeader.startsWith("Bearer ")) {
+      return res.status(401).json({
+        success: false,
+        message: "No valid token provided",
+      });
+    }
 
+    // Extract token
+    const token = authHeader.split(" ")[1];
 
-try{
+    if (!token) {
+      return res.status(401).json({
+        success: false,
+        message: "Invalid token",
+      });
+    }
 
+    // Verify JWT
+    const decoded = jwt.verify(
+      token,
+      process.env.JWT_SECRET
+    );
 
-const authHeader = req.headers.authorization;
+    console.log("Decoded JWT:", decoded);
 
+    // Find user
+    const user = await User.findById(decoded.id).select(
+      "-password"
+    );
 
+    if (!user) {
+      return res.status(401).json({
+        success: false,
+        message: "User not found",
+      });
+    }
 
-if(!authHeader){
+    console.log("Authenticated User:", {
+      id: user._id,
+      name: user.name,
+      email: user.email,
+      role: user.role,
+    });
 
-return res.status(401).json({
+    // Attach user to request
+    req.user = user;
 
-success:false,
+    next();
 
-message:"No token provided"
+  } catch (error) {
+    console.error("AUTH ERROR:", error.message);
 
-});
-
-}
-
-
-
-
-const token = authHeader.split(" ")[1];
-
-
-
-if(!token){
-
-return res.status(401).json({
-
-success:false,
-
-message:"Invalid token"
-
-});
-
-}
-
-
-
-
-const decoded = jwt.verify(
-token,
-process.env.JWT_SECRET
-);
-
-
-
-// get user from database
-const user = await User.findById(decoded.id)
-.select("-password");
-
-
-
-if(!user){
-
-return res.status(401).json({
-
-success:false,
-
-message:"User not found"
-
-});
-
-}
-
-
-
-req.user = user;
-
-
-
-next();
-
-
-
-}catch(error){
-
-
-console.log("AUTH ERROR:",error.message);
-
-
-
-return res.status(401).json({
-
-success:false,
-
-message:"Unauthorized"
-
-});
-
-
-}
-
-
+    return res.status(401).json({
+      success: false,
+      message: "Unauthorized",
+    });
+  }
 };
+
+module.exports = auth;

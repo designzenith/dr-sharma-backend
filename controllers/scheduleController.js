@@ -3,665 +3,772 @@ const Doctor = require("../models/Doctor");
 const DoctorLeave = require("../models/DoctorLeave");
 
 
+// =====================================================
+// Helper: Get Logged-in Doctor
+// =====================================================
 
-// ======================================
-// Helper: Get Doctor Profile
-// ======================================
 const getDoctor = async (userId) => {
+  return await Doctor.findOne({
+    user: userId,
+  });
+};
 
-    return await Doctor.findOne({
-        user:userId
+
+// =====================================================
+// Helper: Get Doctor Schedule
+// =====================================================
+
+const getSchedule = async (doctorId) => {
+  return await Schedule.findOne({
+    doctor: doctorId,
+  });
+};
+
+
+// =====================================================
+// Helper: Validate Time
+// =====================================================
+
+const isValidTime = (time) => {
+  if (!time) return false;
+
+  return /^([01]\d|2[0-3]):([0-5]\d)$/.test(
+    time
+  );
+};
+
+
+// =====================================================
+// Get Doctor Schedule
+// GET /api/schedule
+// =====================================================
+
+const getDoctorSchedule = async (req, res) => {
+  try {
+    const doctor = await getDoctor(
+      req.user._id
+    );
+
+    if (!doctor) {
+      return res.status(404).json({
+        success: false,
+        message: "Doctor profile not found",
+      });
+    }
+
+    let schedule = await getSchedule(
+      doctor._id
+    );
+
+    // Create schedule if it doesn't exist
+    if (!schedule) {
+      schedule = await Schedule.create({
+        doctor: doctor._id,
+      });
+    }
+
+    return res.json({
+      success: true,
+      schedule,
+    });
+  } catch (error) {
+    console.error(
+      "Get doctor schedule error:",
+      error
+    );
+
+    return res.status(500).json({
+      success: false,
+      message: error.message,
+    });
+  }
+};
+
+
+// =====================================================
+// Update Weekly Schedule
+// PUT /api/schedule
+// =====================================================
+
+const updateDoctorSchedule = async (
+  req,
+  res
+) => {
+  try {
+    const doctor = await getDoctor(
+      req.user._id
+    );
+
+    if (!doctor) {
+      return res.status(404).json({
+        success: false,
+        message: "Doctor profile not found",
+      });
+    }
+
+    const {
+      weeklySchedule,
+    } = req.body;
+
+    if (!Array.isArray(weeklySchedule)) {
+      return res.status(400).json({
+        success: false,
+        message:
+          "weeklySchedule must be an array",
+      });
+    }
+
+    const schedule =
+      await Schedule.findOneAndUpdate(
+        {
+          doctor: doctor._id,
+        },
+        {
+          weeklySchedule,
+        },
+        {
+          new: true,
+          upsert: true,
+          runValidators: true,
+          setDefaultsOnInsert: true,
+        }
+      );
+
+    return res.json({
+      success: true,
+      message:
+        "Schedule updated successfully",
+      schedule,
+    });
+  } catch (error) {
+    console.error(
+      "Update doctor schedule error:",
+      error
+    );
+
+    return res.status(500).json({
+      success: false,
+      message: error.message,
+    });
+  }
+};
+
+
+// =====================================================
+// Add Time Slot
+// POST /api/schedule/slot
+// =====================================================
+
+const addTimeSlot = async (req, res) => {
+  try {
+    const doctor = await getDoctor(
+      req.user._id
+    );
+
+    if (!doctor) {
+      return res.status(404).json({
+        success: false,
+        message: "Doctor profile not found",
+      });
+    }
+
+    const {
+      day,
+      startTime,
+      endTime,
+      consultationType = "video",
+      maxPatients = 1,
+      slotDuration = 30,
+    } = req.body;
+
+    // -----------------------------------------------
+    // Required fields
+    // -----------------------------------------------
+
+    if (
+      !day ||
+      !startTime ||
+      !endTime
+    ) {
+      return res.status(400).json({
+        success: false,
+        message:
+          "Day, start time and end time are required",
+      });
+    }
+
+    // -----------------------------------------------
+    // Validate time
+    // -----------------------------------------------
+
+    if (
+      !isValidTime(startTime) ||
+      !isValidTime(endTime)
+    ) {
+      return res.status(400).json({
+        success: false,
+        message:
+          "Invalid time format. Use HH:MM",
+      });
+    }
+
+    if (startTime >= endTime) {
+      return res.status(400).json({
+        success: false,
+        message:
+          "End time must be later than start time",
+      });
+    }
+
+    // -----------------------------------------------
+    // Validate consultation
+    // -----------------------------------------------
+
+    if (
+      ![
+        "video",
+        "audio",
+        "clinic",
+      ].includes(consultationType)
+    ) {
+      return res.status(400).json({
+        success: false,
+        message:
+          "Invalid consultation type",
+      });
+    }
+
+    // -----------------------------------------------
+    // Validate numeric fields
+    // -----------------------------------------------
+
+    if (
+      Number(maxPatients) < 1
+    ) {
+      return res.status(400).json({
+        success: false,
+        message:
+          "Maximum patients must be at least 1",
+      });
+    }
+
+    if (
+      Number(slotDuration) < 5
+    ) {
+      return res.status(400).json({
+        success: false,
+        message:
+          "Slot duration must be at least 5 minutes",
+      });
+    }
+
+    // -----------------------------------------------
+    // Find schedule
+    // -----------------------------------------------
+
+    const schedule = await getSchedule(
+      doctor._id
+    );
+
+    if (!schedule) {
+      return res.status(404).json({
+        success: false,
+        message:
+          "Schedule not found",
+      });
+    }
+
+    // -----------------------------------------------
+    // Find day
+    // -----------------------------------------------
+
+    const dayData =
+      schedule.weeklySchedule.find(
+        (item) => item.day === day
+      );
+
+    if (!dayData) {
+      return res.status(404).json({
+        success: false,
+        message: "Day not found",
+      });
+    }
+
+    // -----------------------------------------------
+    // Check day availability
+    // -----------------------------------------------
+
+    if (!dayData.isAvailable) {
+      return res.status(400).json({
+        success: false,
+        message:
+          `${day} is currently unavailable`,
+      });
+    }
+
+    // -----------------------------------------------
+    // Check break
+    // -----------------------------------------------
+
+    if (
+      dayData.breakStart &&
+      dayData.breakEnd
+    ) {
+      const overlapsBreak =
+        startTime <
+          dayData.breakEnd &&
+        endTime >
+          dayData.breakStart;
+
+      if (overlapsBreak) {
+        return res.status(400).json({
+          success: false,
+          message:
+            "Time slot overlaps with break time",
+        });
+      }
+    }
+
+    // -----------------------------------------------
+    // Check duplicate / overlapping slots
+    // -----------------------------------------------
+
+    const overlappingSlot =
+      dayData.slots.find((slot) => {
+        return (
+          slot.startTime < endTime &&
+          slot.endTime > startTime
+        );
+      });
+
+    if (overlappingSlot) {
+      return res.status(400).json({
+        success: false,
+        message:
+          `Slot overlaps with ${overlappingSlot.startTime} - ${overlappingSlot.endTime}`,
+      });
+    }
+
+    // -----------------------------------------------
+    // Add slot
+    // -----------------------------------------------
+
+    dayData.slots.push({
+      startTime,
+      endTime,
+      consultationType,
+      isBooked: false,
+      maxPatients: Number(maxPatients),
+      slotDuration: Number(slotDuration),
+      isActive: true,
     });
 
+    // -----------------------------------------------
+    // Sort slots
+    // -----------------------------------------------
+
+    dayData.slots.sort((a, b) =>
+      a.startTime.localeCompare(
+        b.startTime
+      )
+    );
+
+    await schedule.save();
+
+    return res.status(201).json({
+      success: true,
+      message:
+        "Time slot added successfully",
+      schedule,
+    });
+  } catch (error) {
+    console.error(
+      "Add time slot error:",
+      error
+    );
+
+    return res.status(500).json({
+      success: false,
+      message: error.message,
+    });
+  }
 };
 
 
-
-// ======================================
-// Get Doctor Schedule
-// ======================================
-const getDoctorSchedule = async(req,res)=>{
-
-try{
-
-
-const doctor =
-await getDoctor(req.user._id);
-
-
-
-if(!doctor){
-
-return res.status(404).json({
-
-success:false,
-
-message:"Doctor profile not found"
-
-});
-
-}
-
-
-
-let schedule =
-await Schedule.findOne({
-
-doctor:doctor._id
-
-});
-
-
-
-if(!schedule){
-
-schedule =
-await Schedule.create({
-
-doctor:doctor._id
-
-});
-
-}
-
-
-
-res.json({
-
-success:true,
-
-schedule
-
-});
-
-
-
-}catch(error){
-
-console.error(error);
-
-
-res.status(500).json({
-
-success:false,
-
-message:error.message
-
-});
-
-}
-
-};
-
-
-
-
-// ======================================
-// Update Weekly Schedule
-// ======================================
-const updateDoctorSchedule = async(req,res)=>{
-
-try{
-
-
-const doctor =
-await getDoctor(req.user._id);
-
-
-
-if(!doctor){
-
-return res.status(404).json({
-
-success:false,
-
-message:"Doctor not found"
-
-});
-
-}
-
-
-
-const schedule =
-await Schedule.findOneAndUpdate(
-
-{
-doctor:doctor._id
-},
-
-{
-weeklySchedule:req.body.weeklySchedule
-},
-
-{
-new:true,
-upsert:true
-}
-
-);
-
-
-
-res.json({
-
-success:true,
-
-message:"Schedule updated successfully",
-
-schedule
-
-});
-
-
-
-}catch(error){
-
-res.status(500).json({
-
-success:false,
-
-message:error.message
-
-});
-
-}
-
-};
-
-
-
-
-
-// ======================================
-// Add Time Slot
-// ======================================
-const addTimeSlot = async(req,res)=>{
-
-try{
-
-
-const doctor =
-await getDoctor(req.user._id);
-
-
-
-const {
-day,
-startTime,
-endTime,
-consultationType
-}=req.body;
-
-
-
-const schedule =
-await Schedule.findOne({
-
-doctor:doctor._id
-
-});
-
-
-
-if(!schedule){
-
-return res.status(404).json({
-
-success:false,
-
-message:"Schedule not found"
-
-});
-
-}
-
-
-
-
-const dayData =
-schedule.weeklySchedule.find(
-(item)=>item.day===day
-);
-
-
-
-if(!dayData){
-
-return res.status(404).json({
-
-success:false,
-
-message:"Day not found"
-
-});
-
-}
-
-
-
-
-const exists =
-dayData.slots.some(
-(slot)=>
-slot.startTime===startTime &&
-slot.endTime===endTime
-);
-
-
-
-if(exists){
-
-return res.status(400).json({
-
-success:false,
-
-message:"Slot already exists"
-
-});
-
-}
-
-
-
-dayData.slots.push({
-
-startTime,
-
-endTime,
-
-consultationType,
-
-isBooked:false
-
-});
-
-
-
-await schedule.save();
-
-
-
-res.json({
-
-success:true,
-
-message:"Slot added successfully",
-
-schedule
-
-});
-
-
-
-}catch(error){
-
-res.status(500).json({
-
-success:false,
-
-message:error.message
-
-});
-
-}
-
-};
-
-
-
-
-
-// ======================================
+// =====================================================
 // Delete Time Slot
-// ======================================
-const deleteTimeSlot = async(req,res)=>{
+// DELETE /api/schedule/slot/:day/:slotIndex
+// =====================================================
 
-try{
+const deleteTimeSlot = async (
+  req,
+  res
+) => {
+  try {
+    const doctor = await getDoctor(
+      req.user._id
+    );
 
+    if (!doctor) {
+      return res.status(404).json({
+        success: false,
+        message: "Doctor profile not found",
+      });
+    }
 
-const doctor =
-await getDoctor(req.user._id);
+    const {
+      day,
+      slotIndex,
+    } = req.params;
 
+    const schedule = await getSchedule(
+      doctor._id
+    );
 
+    if (!schedule) {
+      return res.status(404).json({
+        success: false,
+        message: "Schedule not found",
+      });
+    }
 
-const {
-day,
-slotIndex
-}=req.params;
+    const dayData =
+      schedule.weeklySchedule.find(
+        (item) => item.day === day
+      );
 
+    if (!dayData) {
+      return res.status(404).json({
+        success: false,
+        message: "Day not found",
+      });
+    }
 
+    const index = Number(
+      slotIndex
+    );
 
-const schedule =
-await Schedule.findOne({
+    if (
+      !Number.isInteger(index) ||
+      index < 0 ||
+      index >= dayData.slots.length
+    ) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid slot index",
+      });
+    }
 
-doctor:doctor._id
+    const slot =
+      dayData.slots[index];
 
-});
+    // Don't delete already booked slots
+    if (slot.isBooked) {
+      return res.status(400).json({
+        success: false,
+        message:
+          "Booked slots cannot be deleted",
+      });
+    }
 
+    dayData.slots.splice(index, 1);
 
+    await schedule.save();
 
-const dayData =
-schedule.weeklySchedule.find(
-(item)=>item.day===day
-);
+    return res.json({
+      success: true,
+      message:
+        "Time slot deleted successfully",
+      schedule,
+    });
+  } catch (error) {
+    console.error(
+      "Delete time slot error:",
+      error
+    );
 
-
-
-if(!dayData){
-
-return res.status(404).json({
-
-success:false,
-
-message:"Day not found"
-
-});
-
-}
-
-
-
-dayData.slots.splice(
-Number(slotIndex),
-1
-);
-
-
-
-await schedule.save();
-
-
-
-res.json({
-
-success:true,
-
-message:"Slot deleted successfully",
-
-schedule
-
-});
-
-
-
-}catch(error){
-
-res.status(500).json({
-
-success:false,
-
-message:error.message
-
-});
-
-}
-
+    return res.status(500).json({
+      success: false,
+      message: error.message,
+    });
+  }
 };
 
 
-
-
-
-// ======================================
+// =====================================================
 // Toggle Day Availability
-// ======================================
-const toggleDayAvailability = async(req,res)=>{
+// PUT /api/schedule/availability/:day
+// =====================================================
 
-try{
+const toggleDayAvailability = async (
+  req,
+  res
+) => {
+  try {
+    const doctor = await getDoctor(
+      req.user._id
+    );
 
+    if (!doctor) {
+      return res.status(404).json({
+        success: false,
+        message: "Doctor profile not found",
+      });
+    }
 
-const doctor =
-await getDoctor(req.user._id);
+    const schedule = await getSchedule(
+      doctor._id
+    );
 
+    if (!schedule) {
+      return res.status(404).json({
+        success: false,
+        message: "Schedule not found",
+      });
+    }
 
-const schedule =
-await Schedule.findOne({
+    const dayData =
+      schedule.weeklySchedule.find(
+        (item) =>
+          item.day === req.params.day
+      );
 
-doctor:doctor._id
+    if (!dayData) {
+      return res.status(404).json({
+        success: false,
+        message: "Day not found",
+      });
+    }
 
-});
+    dayData.isAvailable =
+      !dayData.isAvailable;
 
+    await schedule.save();
 
-const dayData =
-schedule.weeklySchedule.find(
-(item)=>item.day===req.params.day
-);
+    return res.json({
+      success: true,
+      message:
+        "Availability updated successfully",
+      schedule,
+    });
+  } catch (error) {
+    console.error(
+      "Toggle availability error:",
+      error
+    );
 
-
-
-if(!dayData){
-
-return res.status(404).json({
-
-success:false,
-
-message:"Day not found"
-
-});
-
-}
-
-
-
-dayData.isAvailable =
-!dayData.isAvailable;
-
-
-
-await schedule.save();
-
-
-
-res.json({
-
-success:true,
-
-message:"Availability updated",
-
-schedule
-
-});
-
-
-
-}catch(error){
-
-res.status(500).json({
-
-success:false,
-
-message:error.message
-
-});
-
-}
-
+    return res.status(500).json({
+      success: false,
+      message: error.message,
+    });
+  }
 };
 
 
-
-
-
-// ======================================
+// =====================================================
 // Add Doctor Leave
-// ======================================
-const addLeave = async(req,res)=>{
+// POST /api/schedule/leaves
+// =====================================================
 
-try{
+const addLeave = async (
+  req,
+  res
+) => {
+  try {
+    const doctor = await getDoctor(
+      req.user._id
+    );
 
+    if (!doctor) {
+      return res.status(404).json({
+        success: false,
+        message: "Doctor profile not found",
+      });
+    }
 
-const doctor =
-await getDoctor(req.user._id);
+    const {
+      fromDate,
+      toDate,
+      reason,
+    } = req.body;
 
+    if (!fromDate || !toDate) {
+      return res.status(400).json({
+        success: false,
+        message:
+          "From date and to date are required",
+      });
+    }
 
+    const startDate =
+      new Date(fromDate);
 
-const leave =
-await DoctorLeave.create({
+    const endDate =
+      new Date(toDate);
 
-doctor:doctor._id,
+    if (
+      Number.isNaN(
+        startDate.getTime()
+      ) ||
+      Number.isNaN(
+        endDate.getTime()
+      )
+    ) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid leave dates",
+      });
+    }
 
-...req.body
+    if (startDate > endDate) {
+      return res.status(400).json({
+        success: false,
+        message:
+          "To date must be after from date",
+      });
+    }
 
-});
+    const leave =
+      await DoctorLeave.create({
+        doctor: doctor._id,
+        fromDate: startDate,
+        toDate: endDate,
+        reason:
+          reason?.trim() || "",
+      });
 
+    return res.status(201).json({
+      success: true,
+      message:
+        "Leave added successfully",
+      leave,
+    });
+  } catch (error) {
+    console.error(
+      "Add leave error:",
+      error
+    );
 
-
-res.status(201).json({
-
-success:true,
-
-message:"Leave added successfully",
-
-leave
-
-});
-
-
-
-}catch(error){
-
-res.status(500).json({
-
-success:false,
-
-message:error.message
-
-});
-
-}
-
+    return res.status(500).json({
+      success: false,
+      message: error.message,
+    });
+  }
 };
 
 
-
-
-
-// ======================================
+// =====================================================
 // Get Doctor Leaves
-// ======================================
-const getLeaves = async(req,res)=>{
+// GET /api/schedule/leaves
+// =====================================================
 
-try{
+const getLeaves = async (
+  req,
+  res
+) => {
+  try {
+    const doctor = await getDoctor(
+      req.user._id
+    );
 
+    if (!doctor) {
+      return res.status(404).json({
+        success: false,
+        message: "Doctor profile not found",
+      });
+    }
 
-const doctor =
-await getDoctor(req.user._id);
+    const leaves =
+      await DoctorLeave.find({
+        doctor: doctor._id,
+      }).sort({
+        fromDate: -1,
+      });
 
+    return res.json({
+      success: true,
+      leaves,
+    });
+  } catch (error) {
+    console.error(
+      "Get leaves error:",
+      error
+    );
 
-
-const leaves =
-await DoctorLeave.find({
-
-doctor:doctor._id
-
-})
-.sort({
-fromDate:-1
-});
-
-
-
-res.json({
-
-success:true,
-
-leaves
-
-});
-
-
-
-}catch(error){
-
-res.status(500).json({
-
-success:false,
-
-message:error.message
-
-});
-
-}
-
+    return res.status(500).json({
+      success: false,
+      message: error.message,
+    });
+  }
 };
 
 
+// =====================================================
+// Delete Doctor Leave
+// DELETE /api/schedule/leaves/:id
+// =====================================================
 
+const deleteLeave = async (
+  req,
+  res
+) => {
+  try {
+    const doctor = await getDoctor(
+      req.user._id
+    );
 
+    if (!doctor) {
+      return res.status(404).json({
+        success: false,
+        message: "Doctor profile not found",
+      });
+    }
 
-// ======================================
-// Delete Leave
-// ======================================
-const deleteLeave = async(req,res)=>{
+    const leave =
+      await DoctorLeave.findOne({
+        _id: req.params.id,
+        doctor: doctor._id,
+      });
 
-try{
+    if (!leave) {
+      return res.status(404).json({
+        success: false,
+        message: "Leave not found",
+      });
+    }
 
+    await leave.deleteOne();
 
-const leave =
-await DoctorLeave.findByIdAndDelete(
-req.params.id
-);
+    return res.json({
+      success: true,
+      message:
+        "Leave deleted successfully",
+    });
+  } catch (error) {
+    console.error(
+      "Delete leave error:",
+      error
+    );
 
-
-
-if(!leave){
-
-return res.status(404).json({
-
-success:false,
-
-message:"Leave not found"
-
-});
-
-}
-
-
-
-res.json({
-
-success:true,
-
-message:"Leave deleted successfully"
-
-});
-
-
-
-}catch(error){
-
-res.status(500).json({
-
-success:false,
-
-message:error.message
-
-});
-
-}
-
+    return res.status(500).json({
+      success: false,
+      message: error.message,
+    });
+  }
 };
 
 
+// =====================================================
+// Export
+// =====================================================
 
-
-module.exports={
-
-getDoctorSchedule,
-
-updateDoctorSchedule,
-
-addTimeSlot,
-
-deleteTimeSlot,
-
-toggleDayAvailability,
-
-addLeave,
-
-getLeaves,
-
-deleteLeave
-
+module.exports = {
+  getDoctorSchedule,
+  updateDoctorSchedule,
+  addTimeSlot,
+  deleteTimeSlot,
+  toggleDayAvailability,
+  addLeave,
+  getLeaves,
+  deleteLeave,
 };

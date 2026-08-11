@@ -1,7 +1,137 @@
+// const express = require("express");
+
+// const router = express.Router();
+
+// const auth = require("../middleware/auth");
+
+// const {
+//   addDoctor,
+//   getDoctors,
+//   getDoctor,
+//   getMyDoctorProfile,
+//   updateDoctor,
+//   deleteDoctor,
+//   getSpecializations,
+// } = require("../controllers/doctorController");
+
+// // =====================================================
+// // PUBLIC ROUTES
+// // =====================================================
+
+// // Get all doctors
+// // GET /api/doctors
+// router.get("/", getDoctors);
+
+
+// // Get all specializations
+// // GET /api/doctors/specializations
+// // MUST be before /:id
+// router.get(
+//   "/specializations",
+//   getSpecializations
+// );
+
+
+// // =====================================================
+// // LOGGED-IN DOCTOR PROFILE
+// // =====================================================
+
+// // Get my doctor profile
+// // GET /api/doctors/me
+// // MUST be BEFORE /:id
+// router.get(
+//   "/me",
+//   auth,
+//   (req, res, next) => {
+//     if (req.user.role !== "doctor") {
+//       return res.status(403).json({
+//         success: false,
+//         message: "Only doctors can access this profile",
+//       });
+//     }
+
+//     next();
+//   },
+//   getMyDoctorProfile
+// );
+
+
+// // Create doctor profile
+// // POST /api/doctors
+// router.post(
+//   "/",
+//   auth,
+//   (req, res, next) => {
+//     if (req.user.role !== "doctor") {
+//       return res.status(403).json({
+//         success: false,
+//         message: "Only doctors can create doctor profiles",
+//       });
+//     }
+
+//     next();
+//   },
+//   addDoctor
+// );
+
+
+// // Update doctor profile
+// // PUT /api/doctors/update
+// router.put(
+//   "/update",
+//   auth,
+//   (req, res, next) => {
+//     if (req.user.role !== "doctor") {
+//       return res.status(403).json({
+//         success: false,
+//         message: "Only doctors can update doctor profiles",
+//       });
+//     }
+
+//     next();
+//   },
+//   updateDoctor
+// );
+
+
+// // Delete doctor profile
+// // DELETE /api/doctors/delete
+// router.delete(
+//   "/delete",
+//   auth,
+//   (req, res, next) => {
+//     if (req.user.role !== "doctor") {
+//       return res.status(403).json({
+//         success: false,
+//         message: "Only doctors can delete doctor profiles",
+//       });
+//     }
+
+//     next();
+//   },
+//   deleteDoctor
+// );
+
+
+// // =====================================================
+// // GET DOCTOR BY ID
+// // =====================================================
+// // THIS MUST BE LAST
+
+// // GET /api/doctors/:id
+// router.get(
+//   "/:id",
+//   getDoctor
+// );
+
+
+// module.exports = router;
+
 const express = require("express");
 const router = express.Router();
 
 const auth = require("../middleware/auth");
+const doctorAuth = require("../middleware/doctorAuth");
 
 const {
   addDoctor,
@@ -13,31 +143,52 @@ const {
   getSpecializations,
 } = require("../controllers/doctorController");
 
-/* ============================
-   Doctor Routes
-============================ */
+// ==============================
+// PUBLIC
+// ==============================
 
-// Add Doctor
-router.post("/", auth, addDoctor);
-
-// Get All Doctors
 router.get("/", getDoctors);
 
-// Get Logged-in Doctor Profile
-router.get("/me", auth, getMyDoctorProfile);
+router.get(
+  "/specializations",
+  getSpecializations
+);
 
-// Get All Specializations
-// IMPORTANT: Keep this BEFORE "/:id"
-router.get("/specializations", getSpecializations);
+router.get(
+  "/:id",
+  getDoctor
+);
 
-// Update Doctor
-router.put("/update", auth, updateDoctor);
+// ==============================
+// DOCTOR ONLY
+// ==============================
 
-// Delete Doctor
-router.delete("/delete", auth, deleteDoctor);
+// Create profile
+router.post(
+  "/",
+  doctorAuth,
+  addDoctor
+);
 
-// Get Doctor By ID
-// Keep this route LAST
-router.get("/:id", getDoctor);
+// Get my profile
+router.get(
+  "/me",
+  doctorAuth,
+  getMyDoctorProfile
+);
+
+// Update profile
+router.put(
+  "/update",
+  doctorAuth,
+  updateDoctor
+);
+
+// Delete profile
+router.delete(
+  "/delete",
+  doctorAuth,
+  deleteDoctor
+);
 
 module.exports = router;

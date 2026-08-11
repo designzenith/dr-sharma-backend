@@ -2,27 +2,51 @@ const mongoose = require("mongoose");
 
 const appointmentSchema = new mongoose.Schema(
   {
+    // ==========================================
+    // Patient
+    // ==========================================
+
     patient: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
       required: true,
+      index: true,
     },
+
+    // ==========================================
+    // Doctor
+    // ==========================================
 
     doctor: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Doctor",
       required: true,
+      index: true,
     },
+
+    // ==========================================
+    // Appointment Date
+    // ==========================================
 
     appointmentDate: {
       type: Date,
       required: true,
+      index: true,
     },
+
+    // ==========================================
+    // Appointment Time
+    // ==========================================
 
     appointmentTime: {
       type: String,
       required: true,
+      trim: true,
     },
+
+    // ==========================================
+    // Consultation Type
+    // ==========================================
 
     consultationType: {
       type: String,
@@ -30,25 +54,62 @@ const appointmentSchema = new mongoose.Schema(
       default: "video",
     },
 
-    // Unique room id for Video/Audio Call
+    // ==========================================
+    // Video / Audio Room
+    // ==========================================
+
     roomId: {
       type: String,
       unique: true,
       sparse: true,
+      trim: true,
     },
+
+    // ==========================================
+    // Appointment Status
+    // ==========================================
 
     status: {
       type: String,
-      enum: ["Pending", "Confirmed", "In Progress", "Completed", "Cancelled"],
+      enum: [
+        "Pending",
+        "Confirmed",
+        "In Progress",
+        "Completed",
+        "Cancelled",
+      ],
       default: "Pending",
+      index: true,
     },
 
-    // Call start time
+    // ==========================================
+    // Cancellation
+    // ==========================================
+
+    cancellationReason: {
+      type: String,
+      default: "",
+      trim: true,
+    },
+
+    // ==========================================
+    // Doctor Notes
+    // ==========================================
+
+    doctorNotes: {
+      type: String,
+      default: "",
+      trim: true,
+    },
+
+    // ==========================================
+    // Call Information
+    // ==========================================
+
     callStartedAt: {
       type: Date,
     },
 
-    // Call end time
     callEndedAt: {
       type: Date,
     },
@@ -57,11 +118,34 @@ const appointmentSchema = new mongoose.Schema(
     duration: {
       type: Number,
       default: 0,
+      min: 0,
     },
   },
   {
     timestamps: true,
-  },
+  }
 );
 
-module.exports = mongoose.model("Appointment", appointmentSchema);
+
+// ==========================================
+// Indexes
+// ==========================================
+
+// Helps quickly find a doctor's appointments
+appointmentSchema.index({
+  doctor: 1,
+  appointmentDate: 1,
+  status: 1,
+});
+
+// Helps quickly find patient's appointments
+appointmentSchema.index({
+  patient: 1,
+  appointmentDate: -1,
+});
+
+
+module.exports = mongoose.model(
+  "Appointment",
+  appointmentSchema
+);

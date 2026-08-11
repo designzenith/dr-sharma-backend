@@ -5,7 +5,11 @@ const doctorAuth = async (req, res, next) => {
   try {
     const authHeader = req.headers.authorization;
 
-    if (!authHeader || !authHeader.startsWith("Bearer ")) {
+    // Check token
+    if (
+      !authHeader ||
+      !authHeader.startsWith("Bearer ")
+    ) {
       return res.status(401).json({
         success: false,
         message: "Authorization token missing",
@@ -14,9 +18,25 @@ const doctorAuth = async (req, res, next) => {
 
     const token = authHeader.split(" ")[1];
 
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    if (!token) {
+      return res.status(401).json({
+        success: false,
+        message: "Invalid token",
+      });
+    }
 
-    const user = await User.findById(decoded.id).select("-password");
+    // Verify JWT
+    const decoded = jwt.verify(
+      token,
+      process.env.JWT_SECRET
+    );
+
+    console.log("Doctor JWT:", decoded);
+
+    // Find user
+    const user = await User.findById(
+      decoded.id
+    ).select("-password");
 
     if (!user) {
       return res.status(401).json({
@@ -25,6 +45,7 @@ const doctorAuth = async (req, res, next) => {
       });
     }
 
+    // Doctor only
     if (user.role !== "doctor") {
       return res.status(403).json({
         success: false,
@@ -32,11 +53,23 @@ const doctorAuth = async (req, res, next) => {
       });
     }
 
+    console.log("Authenticated Doctor:", {
+      id: user._id,
+      name: user.name,
+      email: user.email,
+      role: user.role,
+    });
+
+    // Attach user
     req.user = user;
 
     next();
+
   } catch (error) {
-    console.error("Doctor Auth Error:", error);
+    console.error(
+      "Doctor Auth Error:",
+      error.message
+    );
 
     return res.status(401).json({
       success: false,

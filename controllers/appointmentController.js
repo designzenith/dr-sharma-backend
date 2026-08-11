@@ -2,716 +2,642 @@ const Appointment = require("../models/Appointment");
 const Doctor = require("../models/Doctor");
 const { v4: uuidv4 } = require("uuid");
 
+// =====================================================
+// BOOK APPOINTMENT
+// Patient sends appointment request
+// =====================================================
 
-// =========================
-// Book Appointment
-// Patient sends request
-// =========================
 const bookAppointment = async (req, res) => {
+  try {
+    console.log("Appointment Request:", req.body);
 
-try {
+    // Patient must come from logged-in user
+    const patientId = req.user._id;
 
-console.log("Appointment Request:", req.body);
+    const { doctor, appointmentDate, appointmentTime, consultationType } =
+      req.body;
 
+    // Validate doctor
+    const doctorProfile = await Doctor.findById(doctor);
 
-const appointment = await Appointment.create({
+    if (!doctorProfile) {
+      return res.status(404).json({
+        success: false,
+        message: "Doctor not found",
+      });
+    }
 
-patient: req.body.patient,
+    // Check doctor availability
+    if (!doctorProfile.available) {
+      return res.status(400).json({
+        success: false,
+        message: "Doctor is currently unavailable",
+      });
+    }
 
-doctor: req.body.doctor,
+    // Validate consultation type
+    if (
+      consultationType &&
+      !["video", "audio", "clinic"].includes(consultationType)
+    ) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid consultation type",
+      });
+    }
 
-appointmentDate: req.body.appointmentDate,
+    // Check if doctor already has appointment
+    // at same date and time
+    const existingAppointment = await Appointment.findOne({
+      doctor: doctorProfile._id,
+      appointmentDate: new Date(appointmentDate),
+      appointmentTime,
+      status: {
+        $in: ["Pending", "Confirmed", "In Progress"],
+      },
+    });
 
-appointmentTime: req.body.appointmentTime,
+    if (existingAppointment) {
+      return res.status(400).json({
+        success: false,
+        message: "This appointment slot is already booked or pending approval",
+      });
+    }
 
-consultationType: req.body.consultationType,
+    // Create appointment
+    const appointment = await Appointment.create({
+      patient: patientId,
 
+      doctor: doctorProfile._id,
 
-roomId: uuidv4(),
+      appointmentDate,
 
+      appointmentTime,
 
-status: "Pending",
+      consultationType: consultationType || "video",
 
-});
+      // Room is created after doctor accepts
+      roomId: undefined,
 
+      status: "Pending",
+    });
 
-res.status(201).json({
+    const populatedAppointment = await Appointment.findById(appointment._id)
+      .populate(
+        "doctor",
+        "name specialization qualification experience hospital image consultationFee",
+      )
+      .populate("patient", "name email phone");
 
-success:true,
+    res.status(201).json({
+      success: true,
+      message: "Appointment request sent. Waiting for doctor approval.",
+      appointment: populatedAppointment,
+    });
+  } catch (error) {
+    console.error("Book Appointment Error:", error);
 
-message:"Appointment request sent. Waiting for doctor approval.",
-
-appointment,
-
-});
-
-
-}
-catch(error){
-
-console.error(error);
-
-
-res.status(500).json({
-
-success:false,
-
-message:error.message,
-
-});
-
-}
-
+    res.status(500).json({
+      success: false,
+      message: error.message,
+    });
+  }
 };
 
+// =====================================================
+// PATIENT ALL APPOINTMENTS
+// Admin / internal use if required
+// =====================================================
 
+const patientAppointments = async (req, res) => {
+  try {
+    const appointments = await Appointment.find({
+      patient: req.params.id,
+    })
+      .populate(
+        "doctor",
+        "name specialization qualification experience hospital image consultationFee",
+      )
+      .sort({
+        appointmentDate: -1,
+        createdAt: -1,
+      });
 
+    res.status(200).json({
+      success: true,
+      count: appointments.length,
+      appointments,
+    });
+  } catch (error) {
+    console.error("Patient Appointments Error:", error);
 
-// =========================
-// Patient All Appointments
-// =========================
-
-const patientAppointments = async(req,res)=>{
-
-try{
-
-
-const appointments =
-await Appointment.find({
-
-patient:req.params.id
-
-})
-.populate(
-"doctor",
-"name specialization profileImage"
-)
-.sort({
-appointmentDate:-1
-});
-
-
-
-res.json({
-
-success:true,
-
-appointments,
-
-});
-
-
-}
-catch(error){
-
-res.status(500).json({
-
-success:false,
-
-message:error.message,
-
-});
-
-}
-
+    res.status(500).json({
+      success: false,
+      message: error.message,
+    });
+  }
 };
 
+// =====================================================
+// LOGGED-IN PATIENT APPOINTMENTS
+// =====================================================
 
+const getMyPatientAppointments = async (req, res) => {
+  try {
+    const appointments = await Appointment.find({
+      patient: req.user._id,
+    })
+      .populate(
+        "doctor",
+        "name specialization qualification experience hospital image consultationFee",
+      )
+      .sort({
+        appointmentDate: -1,
+        createdAt: -1,
+      });
 
+    res.status(200).json({
+      success: true,
+      count: appointments.length,
+      appointments,
+    });
+  } catch (error) {
+    console.error("My Patient Appointments Error:", error);
 
-// =========================
-// Logged In Patient Appointments
-// =========================
-
-const getMyPatientAppointments = async(req,res)=>{
-
-try{
-
-
-const appointments =
-await Appointment.find({
-
-patient:req.user._id
-
-})
-.populate(
-"doctor",
-"name specialization profileImage"
-)
-.sort({
-createdAt:-1
-});
-
-
-
-res.json({
-
-success:true,
-
-appointments,
-
-});
-
-
-}
-catch(error){
-
-res.status(500).json({
-
-success:false,
-
-message:error.message,
-
-});
-
-}
-
+    res.status(500).json({
+      success: false,
+      message: error.message,
+    });
+  }
 };
 
+// =====================================================
+// DOCTOR APPOINTMENTS
+// Logged-in doctor only
+// =====================================================
 
+const doctorAppointments = async (req, res) => {
+  try {
+    // Find doctor profile using logged-in user
+    const doctor = await Doctor.findOne({
+      user: req.user._id,
+    });
 
+    if (!doctor) {
+      return res.status(404).json({
+        success: false,
+        message: "Doctor profile not found",
+      });
+    }
 
+    const appointments = await Appointment.find({
+      doctor: doctor._id,
+    })
+      .populate("patient", "name email phone")
+      .populate(
+        "doctor",
+        "name specialization qualification experience hospital image consultationFee",
+      )
+      .sort({
+        appointmentDate: 1,
+        appointmentTime: 1,
+        createdAt: -1,
+      });
 
-// =========================
-// Doctor Appointments
-// =========================
+    res.status(200).json({
+      success: true,
+      count: appointments.length,
+      appointments,
+    });
+  } catch (error) {
+    console.error("Doctor Appointments Error:", error);
 
-const doctorAppointments = async(req,res)=>{
-
-try{
-
-
-const doctor =
-await Doctor.findOne({
-
-user:req.params.id
-
-});
-
-
-
-if(!doctor){
-
-return res.status(404).json({
-
-success:false,
-
-message:"Doctor profile not found"
-
-});
-
-}
-
-
-
-const appointments =
-await Appointment.find({
-
-doctor:doctor._id
-
-})
-.populate(
-"patient",
-"name email phone"
-)
-.sort({
-createdAt:-1
-});
-
-
-
-res.json({
-
-success:true,
-
-appointments,
-
-});
-
-
-}
-catch(error){
-
-res.status(500).json({
-
-success:false,
-
-message:error.message
-
-});
-
-}
-
+    res.status(500).json({
+      success: false,
+      message: error.message,
+    });
+  }
 };
 
+// =====================================================
+// DOCTOR ACCEPT APPOINTMENT
+// Pending → Confirmed
+// =====================================================
 
+const acceptAppointment = async (req, res) => {
+  try {
+    // Find logged-in doctor's profile
+    const doctor = await Doctor.findOne({
+      user: req.user._id,
+    });
 
+    if (!doctor) {
+      return res.status(404).json({
+        success: false,
+        message: "Doctor profile not found",
+      });
+    }
 
+    // IMPORTANT:
+    // Appointment must belong to this doctor
+    const appointment = await Appointment.findOne({
+      _id: req.params.id,
+      doctor: doctor._id,
+    });
 
-// =========================
-// Doctor Accept Appointment
-// =========================
+    if (!appointment) {
+      return res.status(404).json({
+        success: false,
+        message: "Appointment not found or does not belong to you",
+      });
+    }
 
-const acceptAppointment = async(req,res)=>{
+    // Only Pending can be accepted
+    if (appointment.status !== "Pending") {
+      return res.status(400).json({
+        success: false,
+        message: `Appointment is already ${appointment.status}`,
+      });
+    }
 
-try{
+    // Generate room ID only for video/audio
+    if (
+      appointment.consultationType === "video" ||
+      appointment.consultationType === "audio"
+    ) {
+      appointment.roomId = uuidv4();
+    }
 
+    appointment.status = "Confirmed";
 
-const appointment =
-await Appointment.findByIdAndUpdate(
+    await appointment.save();
 
-req.params.id,
+    await appointment.populate("patient", "name email phone");
 
-{
-status:"Confirmed"
-},
+    await appointment.populate(
+      "doctor",
+      "name specialization hospital image consultationFee",
+    );
 
-{
-new:true
-}
+    res.status(200).json({
+      success: true,
+      message: "Appointment confirmed successfully",
+      appointment,
+    });
+  } catch (error) {
+    console.error("Accept Appointment Error:", error);
 
-);
-
-
-
-if(!appointment){
-
-return res.status(404).json({
-
-success:false,
-
-message:"Appointment not found"
-
-});
-
-}
-
-
-
-res.json({
-
-success:true,
-
-message:"Appointment confirmed",
-
-appointment
-
-});
-
-
-}
-catch(error){
-
-res.status(500).json({
-
-success:false,
-
-message:error.message
-
-});
-
-}
-
+    res.status(500).json({
+      success: false,
+      message: error.message,
+    });
+  }
 };
 
+// =====================================================
+// DOCTOR REJECT / CANCEL APPOINTMENT
+// Pending/Confirmed → Cancelled
+// =====================================================
 
+const rejectAppointment = async (req, res) => {
+  try {
+    const doctor = await Doctor.findOne({
+      user: req.user._id,
+    });
 
+    if (!doctor) {
+      return res.status(404).json({
+        success: false,
+        message: "Doctor profile not found",
+      });
+    }
 
+    const appointment = await Appointment.findOne({
+      _id: req.params.id,
+      doctor: doctor._id,
+    });
 
-// =========================
-// Doctor Reject Appointment
-// =========================
+    if (!appointment) {
+      return res.status(404).json({
+        success: false,
+        message: "Appointment not found or does not belong to you",
+      });
+    }
 
-const rejectAppointment = async(req,res)=>{
+    if (appointment.status === "Completed") {
+      return res.status(400).json({
+        success: false,
+        message: "Completed appointment cannot be cancelled",
+      });
+    }
 
-try{
+    if (appointment.status === "Cancelled") {
+      return res.status(400).json({
+        success: false,
+        message: "Appointment is already cancelled",
+      });
+    }
 
+    appointment.status = "Cancelled";
 
-const appointment =
-await Appointment.findByIdAndUpdate(
+    appointment.cancellationReason =
+      req.body.reason || "Appointment cancelled by doctor";
 
-req.params.id,
+    await appointment.save();
 
-{
-status:"Cancelled"
-},
+    res.status(200).json({
+      success: true,
+      message: "Appointment cancelled successfully",
+      appointment,
+    });
+  } catch (error) {
+    console.error("Reject Appointment Error:", error);
 
-{
-new:true
-}
-
-);
-
-
-
-res.json({
-
-success:true,
-
-message:"Appointment rejected",
-
-appointment
-
-});
-
-
-}
-catch(error){
-
-res.status(500).json({
-
-success:false,
-
-message:error.message
-
-});
-
-}
-
+    res.status(500).json({
+      success: false,
+      message: error.message,
+    });
+  }
 };
 
+// =====================================================
+// START CONSULTATION
+// Confirmed → In Progress
+// =====================================================
 
+const startCall = async (req, res) => {
+  try {
+    const doctor = await Doctor.findOne({
+      user: req.user._id,
+    });
 
+    if (!doctor) {
+      return res.status(404).json({
+        success: false,
+        message: "Doctor profile not found",
+      });
+    }
 
+    const appointment = await Appointment.findOne({
+      _id: req.params.id,
+      doctor: doctor._id,
+    });
 
+    if (!appointment) {
+      return res.status(404).json({
+        success: false,
+        message: "Appointment not found",
+      });
+    }
 
-// =========================
-// Start Consultation
-// =========================
+    if (appointment.status !== "Confirmed") {
+      return res.status(400).json({
+        success: false,
+        message: "Only confirmed appointments can be started",
+      });
+    }
 
-const startCall = async(req,res)=>{
+    appointment.status = "In Progress";
 
-try{
+    appointment.callStartedAt = new Date();
 
+    await appointment.save();
 
-const appointment =
-await Appointment.findByIdAndUpdate(
+    res.status(200).json({
+      success: true,
+      message: "Consultation started",
+      appointment,
+    });
+  } catch (error) {
+    console.error("Start Call Error:", error);
 
-req.params.id,
-
-{
-
-status:"In Progress",
-
-callStartedAt:new Date(),
-
-},
-
-{
-new:true
-}
-
-);
-
-
-
-res.json({
-
-success:true,
-
-appointment
-
-});
-
-
-}
-catch(error){
-
-res.status(500).json({
-
-success:false,
-
-message:error.message
-
-});
-
-}
-
+    res.status(500).json({
+      success: false,
+      message: error.message,
+    });
+  }
 };
 
+// =====================================================
+// END CONSULTATION
+// In Progress → Completed
+// =====================================================
 
+const endCall = async (req, res) => {
+  try {
+    const doctor = await Doctor.findOne({
+      user: req.user._id,
+    });
 
+    if (!doctor) {
+      return res.status(404).json({
+        success: false,
+        message: "Doctor profile not found",
+      });
+    }
 
+    const appointment = await Appointment.findOne({
+      _id: req.params.id,
+      doctor: doctor._id,
+    });
 
+    if (!appointment) {
+      return res.status(404).json({
+        success: false,
+        message: "Appointment not found",
+      });
+    }
 
-// =========================
-// End Consultation
-// =========================
+    if (appointment.status !== "In Progress") {
+      return res.status(400).json({
+        success: false,
+        message: "Only active consultations can be completed",
+      });
+    }
 
-const endCall = async(req,res)=>{
+    appointment.status = "Completed";
 
-try{
+    appointment.callEndedAt = new Date();
 
+    // Calculate duration
+    if (appointment.callStartedAt) {
+      const durationMs = appointment.callEndedAt - appointment.callStartedAt;
 
-const appointment =
-await Appointment.findById(
-req.params.id
-);
+      appointment.duration = Math.max(0, Math.floor(durationMs / 1000 / 60));
+    }
 
+    await appointment.save();
 
+    res.status(200).json({
+      success: true,
+      message: "Consultation completed successfully",
+      appointment,
+    });
+  } catch (error) {
+    console.error("End Call Error:", error);
 
-if(!appointment){
-
-return res.status(404).json({
-
-success:false,
-
-message:"Appointment not found"
-
-});
-
-}
-
-
-
-appointment.status="Completed";
-
-appointment.callEndedAt=new Date();
-
-
-
-if(appointment.callStartedAt){
-
-appointment.duration =
-Math.floor(
-(
-appointment.callEndedAt -
-appointment.callStartedAt
-)
-/1000/60
-);
-
-}
-
-
-
-await appointment.save();
-
-
-
-res.json({
-
-success:true,
-
-appointment
-
-});
-
-
-}
-catch(error){
-
-res.status(500).json({
-
-success:false,
-
-message:error.message
-
-});
-
-}
-
+    res.status(500).json({
+      success: false,
+      message: error.message,
+    });
+  }
 };
 
+// =====================================================
+// UPDATE APPOINTMENT
+// Restricted fields only
+// =====================================================
 
+const updateAppointment = async (req, res) => {
+  try {
+    const appointment = await Appointment.findById(req.params.id);
 
+    if (!appointment) {
+      return res.status(404).json({
+        success: false,
+        message: "Appointment not found",
+      });
+    }
 
+    // Only allow appointment date/time/type
+    const allowedFields = [
+      "appointmentDate",
+      "appointmentTime",
+      "consultationType",
+    ];
 
-// =========================
-// Update Appointment
-// =========================
+    allowedFields.forEach((field) => {
+      if (req.body[field] !== undefined) {
+        appointment[field] = req.body[field];
+      }
+    });
 
-const updateAppointment = async(req,res)=>{
+    await appointment.save();
 
-try{
+    res.status(200).json({
+      success: true,
+      message: "Appointment updated successfully",
+      appointment,
+    });
+  } catch (error) {
+    console.error("Update Appointment Error:", error);
 
-
-const appointment =
-await Appointment.findByIdAndUpdate(
-
-req.params.id,
-
-req.body,
-
-{
-new:true
-}
-
-);
-
-
-res.json({
-
-success:true,
-
-appointment
-
-});
-
-
-}
-catch(error){
-
-res.status(500).json({
-
-success:false,
-
-message:error.message
-
-});
-
-}
-
+    res.status(500).json({
+      success: false,
+      message: error.message,
+    });
+  }
 };
 
+// =====================================================
+// PATIENT CANCEL APPOINTMENT
+// =====================================================
 
+const cancelAppointment = async (req, res) => {
+  try {
+    const appointment = await Appointment.findOne({
+      _id: req.params.id,
+      patient: req.user._id,
+    });
 
+    if (!appointment) {
+      return res.status(404).json({
+        success: false,
+        message: "Appointment not found",
+      });
+    }
 
+    if (appointment.status === "Completed") {
+      return res.status(400).json({
+        success: false,
+        message: "Completed appointment cannot be cancelled",
+      });
+    }
 
-// =========================
-// Cancel Appointment
-// =========================
+    if (appointment.status === "Cancelled") {
+      return res.status(400).json({
+        success: false,
+        message: "Appointment is already cancelled",
+      });
+    }
 
-const cancelAppointment = async(req,res)=>{
+    appointment.status = "Cancelled";
 
-try{
+    appointment.cancellationReason = req.body.reason || "Cancelled by patient";
 
+    await appointment.save();
 
-const appointment =
-await Appointment.findByIdAndUpdate(
+    res.status(200).json({
+      success: true,
+      message: "Appointment cancelled successfully",
+      appointment,
+    });
+  } catch (error) {
+    console.error("Cancel Appointment Error:", error);
 
-req.params.id,
-
-{
-status:"Cancelled"
-},
-
-{
-new:true
-}
-
-);
-
-
-
-res.json({
-
-success:true,
-
-appointment
-
-});
-
-
-}
-catch(error){
-
-res.status(500).json({
-
-success:false,
-
-message:error.message
-
-});
-
-}
-
+    res.status(500).json({
+      success: false,
+      message: error.message,
+    });
+  }
 };
 
+// =====================================================
+// GET APPOINTMENT BY ROOM ID
+// =====================================================
 
+const getAppointmentByRoom = async (req, res) => {
+  try {
+    const appointment = await Appointment.findOne({
+      roomId: req.params.roomId,
+    })
+      .populate(
+        "doctor",
+        "name specialization qualification experience hospital image",
+      )
+      .populate("patient", "name email phone");
 
+    if (!appointment) {
+      return res.status(404).json({
+        success: false,
+        message: "Appointment not found",
+      });
+    }
 
+    res.status(200).json({
+      success: true,
+      appointment,
+    });
+  } catch (error) {
+    console.error("Get Appointment By Room Error:", error);
 
-// =========================
-// Get Appointment By Room
-// =========================
-
-const getAppointmentByRoom = async(req,res)=>{
-
-try{
-
-
-const appointment =
-await Appointment.findOne({
-
-roomId:req.params.roomId
-
-})
-.populate("doctor")
-.populate("patient");
-
-
-
-if(!appointment){
-
-return res.status(404).json({
-
-success:false,
-
-message:"Appointment not found"
-
-});
-
-}
-
-
-
-res.json({
-
-success:true,
-
-appointment
-
-});
-
-
-}
-catch(error){
-
-res.status(500).json({
-
-success:false,
-
-message:error.message
-
-});
-
-}
-
+    res.status(500).json({
+      success: false,
+      message: error.message,
+    });
+  }
 };
 
+module.exports = {
+  bookAppointment,
 
+  patientAppointments,
 
+  getMyPatientAppointments,
 
+  doctorAppointments,
 
-module.exports={
+  acceptAppointment,
 
+  rejectAppointment,
 
-bookAppointment,
+  updateAppointment,
 
-patientAppointments,
+  cancelAppointment,
 
-getMyPatientAppointments,
+  startCall,
 
-doctorAppointments,
+  endCall,
 
-
-acceptAppointment,
-
-rejectAppointment,
-
-
-updateAppointment,
-
-cancelAppointment,
-
-
-startCall,
-
-endCall,
-
-
-getAppointmentByRoom,
-
-
+  getAppointmentByRoom,
 };

@@ -2,31 +2,48 @@ const mongoose = require("mongoose");
 
 const doctorSchema = new mongoose.Schema(
   {
+    // =====================================================
+    // Linked User Account
+    // =====================================================
+
     user: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
       required: true,
+      unique: true,
     },
+
+    // =====================================================
+    // Basic Details
+    // =====================================================
 
     name: {
       type: String,
       required: true,
+      trim: true,
     },
 
     email: {
       type: String,
+      trim: true,
+      lowercase: true,
     },
 
     phone: {
       type: String,
+      trim: true,
     },
 
-   specialization: {
+    // =====================================================
+    // Professional Details
+    // =====================================================
+
+    specialization: {
       type: String,
-      required: true,
+      trim: true,
+      default: "",
     },
 
-    // Add this field
     icon: {
       type: String,
       default: "🩺",
@@ -34,30 +51,24 @@ const doctorSchema = new mongoose.Schema(
 
     qualification: {
       type: String,
+      trim: true,
+      default: "",
     },
 
     experience: {
       type: String,
+      trim: true,
+      default: "",
     },
+
+    // =====================================================
+    // Consultation Details
+    // =====================================================
 
     consultationFee: {
       type: Number,
-    },
-
-    hospital: {
-      type: String,
-    },
-
-    address: {
-      type: String,
-    },
-
-    about: {
-      type: String,
-    },
-
-    image: {
-      type: String,
+      min: 0,
+      default: 0,
     },
 
     consultationType: {
@@ -66,6 +77,45 @@ const doctorSchema = new mongoose.Schema(
       default: "video",
     },
 
+    // =====================================================
+    // Hospital / Clinic
+    // =====================================================
+
+    hospital: {
+      type: String,
+      trim: true,
+      default: "",
+    },
+
+    address: {
+      type: String,
+      trim: true,
+      default: "",
+    },
+
+    // =====================================================
+    // Doctor Description
+    // =====================================================
+
+    about: {
+      type: String,
+      trim: true,
+      default: "",
+    },
+
+    // =====================================================
+    // Profile Image
+    // =====================================================
+
+    image: {
+      type: String,
+      default: "",
+    },
+
+    // =====================================================
+    // Availability
+    // =====================================================
+
     available: {
       type: Boolean,
       default: true,
@@ -73,7 +123,7 @@ const doctorSchema = new mongoose.Schema(
   },
   {
     timestamps: true,
-  },
+  }
 );
 
 module.exports = mongoose.model("Doctor", doctorSchema);
