@@ -222,7 +222,6 @@ const getMyDoctorProfile = async (req, res) => {
 const updateDoctor = async (req, res) => {
   try {
     const userId = req.user._id;
-
     const {
       name,
       email,
