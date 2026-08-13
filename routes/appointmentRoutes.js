@@ -2,11 +2,13 @@ const express = require("express");
 const router = express.Router();
 
 const auth = require("../middleware/auth");
+const adminAuth = require("../middleware/adminAuth");
 
 const {
   bookAppointment,
   patientAppointments,
   getMyPatientAppointments,
+   patientHistory,
   doctorAppointments,
   acceptAppointment,
   rejectAppointment,
@@ -15,9 +17,20 @@ const {
   startCall,
   endCall,
   getAppointmentByRoom,
+   adminDashboard,
 } = require("../controllers/appointmentController");
 
+// =====================================================
+// ADMIN ROUTES
+// =====================================================
 
+// GET /api/appointments/admin
+// Admin can see complete platform data
+router.get(
+  "/admin",
+  adminAuth,
+  adminDashboard
+);
 // =====================================================
 // PATIENT ROUTES
 // =====================================================
@@ -40,7 +53,16 @@ router.get(
   getMyPatientAppointments
 );
 
+// =====================================================
+// PATIENT HISTORY
+// =====================================================
 
+// GET /api/appointments/history
+router.get(
+  "/history",
+  auth,
+  patientHistory
+);
 // Patient Appointments By User ID
 // GET /api/appointments/patient/:id
 router.get(

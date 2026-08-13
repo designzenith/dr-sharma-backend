@@ -1,17 +1,16 @@
 const express = require("express");
 const dotenv = require("dotenv");
 const cors = require("cors");
+const path = require("path");
 const dns = require("node:dns");
 
 const connectDB = require("./config/db");
-
 
 // =====================================================
 // Environment
 // =====================================================
 
 dotenv.config();
-
 
 // =====================================================
 // DNS Fix
@@ -22,23 +21,19 @@ dns.setServers([
   "8.8.8.8",
 ]);
 
-
 // =====================================================
 // App
 // =====================================================
 
 const app = express();
 
-const PORT =
-  process.env.PORT || 5000;
-
+const PORT = process.env.PORT || 5000;
 
 // =====================================================
 // Database
 // =====================================================
 
 connectDB();
-
 
 // =====================================================
 // Middleware
@@ -73,7 +68,6 @@ app.use(
   })
 );
 
-
 app.use(express.json());
 
 app.use(
@@ -81,7 +75,6 @@ app.use(
     extended: true,
   })
 );
-
 
 // =====================================================
 // Health Check
@@ -94,49 +87,99 @@ app.get("/", (req, res) => {
   });
 });
 
-
 // =====================================================
 // API Routes
 // =====================================================
+
+// -----------------------------------------------------
+// Authentication
+// -----------------------------------------------------
 
 app.use(
   "/api/auth",
   require("./routes/authRoutes")
 );
 
+// -----------------------------------------------------
+// Doctors
+// -----------------------------------------------------
+
 app.use(
   "/api/doctors",
   require("./routes/doctorRoutes")
 );
+
+// -----------------------------------------------------
+// Patients
+// -----------------------------------------------------
 
 app.use(
   "/api/patients",
   require("./routes/patientRoutes")
 );
 
+// -----------------------------------------------------
+// Appointments
+// -----------------------------------------------------
+
 app.use(
   "/api/appointments",
   require("./routes/appointmentRoutes")
 );
+
+// -----------------------------------------------------
+// Schedule
+// -----------------------------------------------------
 
 app.use(
   "/api/schedule",
   require("./routes/scheduleRoutes")
 );
 
+// -----------------------------------------------------
+// Leaves
+// -----------------------------------------------------
+
 app.use(
   "/api/leaves",
   require("./routes/leaveRoutes")
 );
+
+// -----------------------------------------------------
+// Profile
+// -----------------------------------------------------
 
 app.use(
   "/api/profile",
   require("./routes/profileRoutes")
 );
 
+// =====================================================
+// Upload Routes
+// =====================================================
+
+const uploadRoutes = require("./routes/uploadRoutes");
+
+app.use(
+  "/api/upload",
+  uploadRoutes
+);
+
+// =====================================================
+// Static Uploads
+// =====================================================
+
+app.use(
+  "/uploads",
+  express.static(
+    path.join(__dirname, "uploads")
+  )
+);
 
 // =====================================================
 // 404 Handler
+// IMPORTANT:
+// Keep this AFTER all API routes.
 // =====================================================
 
 app.use((req, res) => {
@@ -147,16 +190,15 @@ app.use((req, res) => {
   });
 });
 
-
 // =====================================================
 // Global Error Handler
 // =====================================================
 
-const errorHandler =
-  require("./middleware/errorHandler");
+const errorHandler = require(
+  "./middleware/errorHandler"
+);
 
 app.use(errorHandler);
-
 
 // =====================================================
 // Start Server

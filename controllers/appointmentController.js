@@ -1,5 +1,6 @@
 const Appointment = require("../models/Appointment");
 const Doctor = require("../models/Doctor");
+const User = require("../models/User");
 const { v4: uuidv4 } = require("uuid");
 
 // =====================================================
@@ -170,7 +171,42 @@ const getMyPatientAppointments = async (req, res) => {
     });
   }
 };
+// =====================================================
+// PATIENT CONSULTATION HISTORY
+// Completed + Cancelled appointments
+// =====================================================
 
+const patientHistory = async (req, res) => {
+  try {
+    const appointments = await Appointment.find({
+      patient: req.user._id,
+      status: {
+        $in: ["Completed", "Cancelled"],
+      },
+    })
+      .populate(
+        "doctor",
+        "name specialization qualification experience hospital image consultationFee",
+      )
+      .sort({
+        appointmentDate: -1,
+        createdAt: -1,
+      });
+
+    return res.status(200).json({
+      success: true,
+      count: appointments.length,
+      appointments,
+    });
+  } catch (error) {
+    console.error("Patient History Error:", error);
+
+    return res.status(500).json({
+      success: false,
+      message: error.message || "Unable to load consultation history",
+    });
+  }
+};
 // =====================================================
 // DOCTOR APPOINTMENTS
 // Logged-in doctor only
@@ -617,6 +653,90 @@ const getAppointmentByRoom = async (req, res) => {
     });
   }
 };
+// =====================================================
+// ADMIN DASHBOARD
+// Get all patients, doctors, appointments and revenue
+// =====================================================
+
+const adminDashboard = async (req, res) => {
+  try {
+    // -------------------------------------------------
+    // 1. Total registered patients
+    // -------------------------------------------------
+
+    const totalPatients = await User.countDocuments({
+      role: "patient",
+    });
+
+    // -------------------------------------------------
+    // 2. Total registered doctors
+    // -------------------------------------------------
+
+    const totalDoctors = await Doctor.countDocuments();
+
+    // -------------------------------------------------
+    // 3. Total appointments
+    // -------------------------------------------------
+
+    const totalAppointments = await Appointment.countDocuments();
+
+    // -------------------------------------------------
+    // 4. Get all appointments
+    // -------------------------------------------------
+
+    const appointments = await Appointment.find()
+      .populate("patient", "name email phone")
+      .populate(
+        "doctor",
+        "name specialization qualification experience hospital image consultationFee",
+      )
+      .sort({
+        appointmentDate: -1,
+        createdAt: -1,
+      });
+
+    // -------------------------------------------------
+    // 5. Calculate revenue
+    //
+    // Appointment does not store consultationFee.
+    // Fee comes from Doctor profile.
+    // -------------------------------------------------
+
+    const totalRevenue = appointments.reduce((total, appointment) => {
+      // Do not count cancelled appointments
+      if (appointment.status === "Cancelled") {
+        return total;
+      }
+
+      const fee = Number(appointment.doctor?.consultationFee) || 0;
+
+      return total + fee;
+    }, 0);
+
+    // -------------------------------------------------
+    // 6. Send dashboard data
+    // -------------------------------------------------
+
+    return res.status(200).json({
+      success: true,
+
+      totalPatients,
+      totalDoctors,
+      totalAppointments,
+      totalRevenue,
+
+      appointments,
+    });
+  } catch (error) {
+    console.error("Admin Dashboard Error:", error);
+
+    return res.status(500).json({
+      success: false,
+      message: error.message || "Unable to load admin dashboard",
+    });
+  }
+};
+
 
 module.exports = {
   bookAppointment,
@@ -624,6 +744,8 @@ module.exports = {
   patientAppointments,
 
   getMyPatientAppointments,
+
+  patientHistory,
 
   doctorAppointments,
 
@@ -640,4 +762,6 @@ module.exports = {
   endCall,
 
   getAppointmentByRoom,
+
+  adminDashboard,
 };
