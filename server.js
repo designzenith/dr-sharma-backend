@@ -6,7 +6,6 @@ const cors = require("cors");
 const dns = require("dns");
 const path = require("path");
 const { Server } = require("socket.io");
-app.use("/api/consult", require("./routes/consult"));
 
 // =====================================================
 // Config / Database
@@ -79,6 +78,7 @@ app.use(
     extended: true,
   })
 );
+
 
 // =====================================================
 // Health Check
@@ -164,6 +164,11 @@ app.use(
   "/api/profile",
   require("./routes/profileRoutes")
 );
+
+app.use(
+  "/api/consult",
+   require("./routes/consult")
+  );
 
 // =====================================================
 // Upload Routes
