@@ -2,7 +2,9 @@ const Appointment = require("../models/Appointment");
 const Doctor = require("../models/Doctor");
 const User = require("../models/User");
 const { v4: uuidv4 } = require("uuid");
-
+const DoctorLeave = require("../models/DoctorLeave");
+// or if you already exported the helper:
+const { checkDoctorLeave } = require("./leaveController"); // adjust path if needed
 // =====================================================
 // BOOK APPOINTMENT
 // Patient sends appointment request
@@ -10,15 +12,13 @@ const { v4: uuidv4 } = require("uuid");
 
 const bookAppointment = async (req, res) => {
   try {
-    console.log("Appointment Request:", req.body);
-
-    // Patient must come from logged-in user
     const patientId = req.user._id;
-
     const { doctor, appointmentDate, appointmentTime, consultationType } =
       req.body;
 
+    // -----------------------------------------------
     // Validate doctor
+    // -----------------------------------------------
     const doctorProfile = await Doctor.findById(doctor);
 
     if (!doctorProfile) {
@@ -28,7 +28,6 @@ const bookAppointment = async (req, res) => {
       });
     }
 
-    // Check doctor availability
     if (!doctorProfile.available) {
       return res.status(400).json({
         success: false,
@@ -36,7 +35,9 @@ const bookAppointment = async (req, res) => {
       });
     }
 
+    // -----------------------------------------------
     // Validate consultation type
+    // -----------------------------------------------
     if (
       consultationType &&
       !["video", "audio", "clinic"].includes(consultationType)
@@ -47,11 +48,34 @@ const bookAppointment = async (req, res) => {
       });
     }
 
-    // Check if doctor already has appointment
-    // at same date and time
+    // -----------------------------------------------
+    // IMPORTANT: Check if doctor is on leave
+    // -----------------------------------------------
+    const selectedDate = new Date(appointmentDate);
+    selectedDate.setHours(0, 0, 0, 0);
+
+    const leave = await DoctorLeave.findOne({
+      doctor: doctorProfile._id,
+      status: "Active",
+      isActive: true,
+      fromDate: { $lte: selectedDate },
+      toDate: { $gte: selectedDate },
+    });
+
+    if (leave) {
+      // Optional: handle Half Day leave more precisely later
+      return res.status(400).json({
+        success: false,
+        message: `Doctor is on leave (${leave.leaveType}) on this date`,
+      });
+    }
+
+    // -----------------------------------------------
+    // Check if slot is already booked
+    // -----------------------------------------------
     const existingAppointment = await Appointment.findOne({
       doctor: doctorProfile._id,
-      appointmentDate: new Date(appointmentDate),
+      appointmentDate: selectedDate,
       appointmentTime,
       status: {
         $in: ["Pending", "Confirmed", "In Progress"],
@@ -65,46 +89,38 @@ const bookAppointment = async (req, res) => {
       });
     }
 
+    // -----------------------------------------------
     // Create appointment
+    // -----------------------------------------------
     const appointment = await Appointment.create({
       patient: patientId,
-
       doctor: doctorProfile._id,
-
-      appointmentDate,
-
+      appointmentDate: selectedDate,
       appointmentTime,
-
       consultationType: consultationType || "video",
-
-      // Room is created after doctor accepts
-      roomId: undefined,
-
       status: "Pending",
     });
 
     const populatedAppointment = await Appointment.findById(appointment._id)
       .populate(
         "doctor",
-        "name specialization qualification experience hospital image consultationFee",
+        "name specialization qualification experience hospital image consultationFee"
       )
       .populate("patient", "name email phone");
 
-    res.status(201).json({
+    return res.status(201).json({
       success: true,
       message: "Appointment request sent. Waiting for doctor approval.",
       appointment: populatedAppointment,
     });
   } catch (error) {
     console.error("Book Appointment Error:", error);
-
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       message: error.message,
     });
   }
 };
-
 // =====================================================
 // PATIENT ALL APPOINTMENTS
 // Admin / internal use if required

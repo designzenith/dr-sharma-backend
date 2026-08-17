@@ -6,6 +6,7 @@ const cors = require("cors");
 const dns = require("dns");
 const path = require("path");
 const { Server } = require("socket.io");
+app.use("/api/consult", require("./routes/consult"));
 
 // =====================================================
 // Config / Database
