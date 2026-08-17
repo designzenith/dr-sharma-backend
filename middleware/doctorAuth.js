@@ -5,11 +5,11 @@ const doctorAuth = async (req, res, next) => {
   try {
     const authHeader = req.headers.authorization;
 
-    console.log("========== DOCTOR AUTH ==========");
-    console.log("Authorization header exists:", !!authHeader);
-
     // Check token
-    if (!authHeader || !authHeader.startsWith("Bearer ")) {
+    if (
+      !authHeader ||
+      !authHeader.startsWith("Bearer ")
+    ) {
       return res.status(401).json({
         success: false,
         message: "Authorization token missing",
@@ -33,24 +33,10 @@ const doctorAuth = async (req, res, next) => {
 
     console.log("Doctor JWT:", decoded);
 
-    // Get user ID from token
-    const userId =
-      decoded.id ||
-      decoded._id ||
-      decoded.userId;
-
-    console.log("User ID from JWT:", userId);
-
-    if (!userId) {
-      return res.status(401).json({
-        success: false,
-        message: "User ID missing from token",
-      });
-    }
-
     // Find user
-    const user = await User.findById(userId)
-      .select("-password");
+    const user = await User.findById(
+      decoded.id
+    ).select("-password");
 
     if (!user) {
       return res.status(401).json({
@@ -76,9 +62,6 @@ const doctorAuth = async (req, res, next) => {
 
     // Attach user
     req.user = user;
-
-    console.log("req.user._id:", req.user._id);
-    console.log("================================");
 
     next();
 
