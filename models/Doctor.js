@@ -72,7 +72,7 @@ const doctorSchema = new mongoose.Schema(
     },
 
     consultationType: {
-      type: String,
+      type: [String],
       enum: ["video", "audio", "clinic"],
       default: "video",
     },

@@ -2,6 +2,9 @@ const mongoose = require("mongoose");
 
 const doctorLeaveSchema = new mongoose.Schema(
   {
+    // ==========================================
+    // Doctor
+    // ==========================================
     doctor: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Doctor",
@@ -9,6 +12,9 @@ const doctorLeaveSchema = new mongoose.Schema(
       index: true,
     },
 
+    // ==========================================
+    // Leave Type
+    // ==========================================
     leaveType: {
       type: String,
       enum: [
@@ -19,8 +25,12 @@ const doctorLeaveSchema = new mongoose.Schema(
         "Weekly Off",
       ],
       default: "Full Day",
+      required: true,
     },
 
+    // ==========================================
+    // Leave Dates
+    // ==========================================
     fromDate: {
       type: Date,
       required: true,
@@ -31,17 +41,24 @@ const doctorLeaveSchema = new mongoose.Schema(
       required: true,
     },
 
+    // ==========================================
+    // Time (used for Half Day)
+    // ==========================================
     fromTime: {
       type: String,
       default: "",
+      trim: true,
     },
 
     toTime: {
       type: String,
       default: "",
+      trim: true,
     },
 
-    // Used only when leaveType = Weekly Off
+    // ==========================================
+    // Weekly Off
+    // ==========================================
     weekDay: {
       type: String,
       enum: [
@@ -57,21 +74,32 @@ const doctorLeaveSchema = new mongoose.Schema(
       default: "",
     },
 
+    // ==========================================
+    // Reason
+    // ==========================================
     reason: {
       type: String,
       trim: true,
       default: "",
     },
 
+    // ==========================================
+    // Leave Status
+    // ==========================================
     status: {
       type: String,
-      enum: ["Pending", "Approved", "Rejected"],
-      default: "Approved",
+      enum: ["Active", "Cancelled"],
+      default: "Active",
+      index: true,
     },
 
+    // ==========================================
+    // Active Flag
+    // ==========================================
     isActive: {
       type: Boolean,
       default: true,
+      index: true,
     },
   },
   {
@@ -79,7 +107,42 @@ const doctorLeaveSchema = new mongoose.Schema(
   }
 );
 
-// Indexes
+// =====================================================
+// VALIDATION
+// =====================================================
+doctorLeaveSchema.pre("validate", async function () {
+  if (this.fromDate && this.toDate && this.toDate < this.fromDate) {
+    throw new Error("To date must be greater than or equal to from date");
+  }
+
+  if (this.leaveType === "Weekly Off" && !this.weekDay) {
+    throw new Error("Week day is required for Weekly Off");
+  }
+
+  if (this.leaveType === "Half Day") {
+    if (!this.fromTime || !this.toTime) {
+      throw new Error("From time and to time are required for Half Day leave");
+    }
+    if (this.fromTime >= this.toTime) {
+      throw new Error("To time must be greater than from time");
+    }
+  }
+});
+
+// =====================================================
+// KEEP isActive SYNCHRONIZED WITH status
+// =====================================================
+doctorLeaveSchema.pre("save", async function () {
+  if (this.status === "Cancelled") {
+    this.isActive = false;
+  } else if (this.status === "Active") {
+    this.isActive = true;
+  }
+});
+
+// =====================================================
+// INDEXES
+// =====================================================
 doctorLeaveSchema.index({
   doctor: 1,
   fromDate: 1,
@@ -89,6 +152,10 @@ doctorLeaveSchema.index({
 doctorLeaveSchema.index({
   doctor: 1,
   status: 1,
+  isActive: 1,
 });
 
+// =====================================================
+// EXPORT
+// =====================================================
 module.exports = mongoose.model("DoctorLeave", doctorLeaveSchema);

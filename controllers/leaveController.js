@@ -1,6 +1,15 @@
-const Leave = require("../models/Leave");
+const DoctorLeave = require("../models/DoctorLeave");
 const Doctor = require("../models/Doctor");
 
+// =====================================================
+// Helper: Get Doctor Profile
+// =====================================================
+
+const getDoctor = async (userId) => {
+  return await Doctor.findOne({
+    user: userId,
+  });
+};
 
 // =====================================================
 // Apply for Leave
@@ -9,16 +18,64 @@ const Doctor = require("../models/Doctor");
 
 const applyLeave = async (req, res) => {
   try {
-    const { leaveDate, reason } = req.body;
+    const {
+      leaveType,
+      fromDate,
+      toDate,
+      fromTime,
+      toTime,
+      weekDay,
+      reason,
+    } = req.body;
 
     // -----------------------------------------------
-    // Validation
+    // Find Doctor
     // -----------------------------------------------
+    const doctor = await getDoctor(req.user._id);
 
-    if (!leaveDate) {
+    if (!doctor) {
+      return res.status(404).json({
+        success: false,
+        message: "Doctor profile not found",
+      });
+    }
+
+    // -----------------------------------------------
+    // Basic Validation
+    // -----------------------------------------------
+    if (!leaveType) {
       return res.status(400).json({
         success: false,
-        message: "Leave date is required",
+        message: "Leave type is required",
+      });
+    }
+
+    const allowedLeaveTypes = [
+      "Full Day",
+      "Half Day",
+      "Vacation",
+      "Emergency",
+      "Weekly Off",
+    ];
+
+    if (!allowedLeaveTypes.includes(leaveType)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid leave type",
+      });
+    }
+
+    if (!fromDate) {
+      return res.status(400).json({
+        success: false,
+        message: "From date is required",
+      });
+    }
+
+    if (!toDate) {
+      return res.status(400).json({
+        success: false,
+        message: "To date is required",
       });
     }
 
@@ -30,114 +87,137 @@ const applyLeave = async (req, res) => {
     }
 
     // -----------------------------------------------
-    // Find Doctor
+    // Validate Dates
     // -----------------------------------------------
+    const startDate = new Date(fromDate);
+    const endDate = new Date(toDate);
 
-    const doctor = await Doctor.findOne({
-      user: req.user._id,
-    });
-
-    if (!doctor) {
-      return res.status(404).json({
-        success: false,
-        message: "Doctor profile not found",
-      });
-    }
-
-    // -----------------------------------------------
-    // Validate Date
-    // -----------------------------------------------
-
-    const date = new Date(leaveDate);
-
-    if (Number.isNaN(date.getTime())) {
+    if (Number.isNaN(startDate.getTime()) || Number.isNaN(endDate.getTime())) {
       return res.status(400).json({
         success: false,
         message: "Invalid leave date",
       });
     }
 
-    /*
-     * Normalize date to midnight.
-     *
-     * This prevents duplicate requests caused by
-     * different time values.
-     */
-
-    date.setHours(0, 0, 0, 0);
+    // Normalize dates
+    startDate.setHours(0, 0, 0, 0);
+    endDate.setHours(0, 0, 0, 0);
 
     // -----------------------------------------------
-    // Prevent Past Date
+    // Check Date Range
     // -----------------------------------------------
-
-    const today = new Date();
-
-    today.setHours(0, 0, 0, 0);
-
-    if (date < today) {
+    if (endDate < startDate) {
       return res.status(400).json({
         success: false,
-        message:
-          "You cannot apply for leave on a past date",
+        message: "To date must be greater than or equal to from date",
       });
     }
 
     // -----------------------------------------------
-    // Check Existing Leave
+    // Prevent Past Leave
     // -----------------------------------------------
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
 
-    const existingLeave = await Leave.findOne({
+    if (startDate < today) {
+      return res.status(400).json({
+        success: false,
+        message: "You cannot apply for leave on a past date",
+      });
+    }
+
+    // -----------------------------------------------
+    // Weekly Off Validation
+    // -----------------------------------------------
+    if (leaveType === "Weekly Off") {
+      const allowedDays = [
+        "Monday",
+        "Tuesday",
+        "Wednesday",
+        "Thursday",
+        "Friday",
+        "Saturday",
+        "Sunday",
+      ];
+
+      if (!weekDay || !allowedDays.includes(weekDay)) {
+        return res.status(400).json({
+          success: false,
+          message: "Week day is required for Weekly Off",
+        });
+      }
+    }
+
+    // -----------------------------------------------
+    // Half Day Validation
+    // -----------------------------------------------
+    if (leaveType === "Half Day") {
+      if (!fromTime || !toTime) {
+        return res.status(400).json({
+          success: false,
+          message: "From time and to time are required for Half Day leave",
+        });
+      }
+
+      if (fromTime >= toTime) {
+        return res.status(400).json({
+          success: false,
+          message: "To time must be later than from time",
+        });
+      }
+    }
+
+    // -----------------------------------------------
+    // Check Existing Active Leave (date range overlap)
+    // -----------------------------------------------
+    const existingLeave = await DoctorLeave.findOne({
       doctor: doctor._id,
-      leaveDate: date,
+      status: "Active",
+      isActive: true,
+      fromDate: { $lte: endDate },
+      toDate: { $gte: startDate },
     });
 
     if (existingLeave) {
       return res.status(400).json({
         success: false,
-        message:
-          "A leave request already exists for this date",
+        message: "An active leave already exists for one or more selected dates",
       });
     }
 
     // -----------------------------------------------
-    // Create Leave
+    // Create Leave  ← THIS WAS COMMENTED OUT / BROKEN
     // -----------------------------------------------
-
-    const leave = await Leave.create({
+    const leave = await DoctorLeave.create({
       doctor: doctor._id,
-      leaveDate: date,
+      leaveType,
+      fromDate: startDate,
+      toDate: endDate,
+      fromTime: leaveType === "Half Day" ? fromTime || "" : "",
+      toTime: leaveType === "Half Day" ? toTime || "" : "",
+      weekDay: leaveType === "Weekly Off" ? weekDay || "" : "",
       reason: reason.trim(),
-      status: "Pending",
+      status: "Active",
+      isActive: true,
     });
 
+    // -----------------------------------------------
+    // Response
+    // -----------------------------------------------
     return res.status(201).json({
       success: true,
-      message:
-        "Leave request submitted successfully",
+      message: "Leave applied successfully",
       leave,
     });
   } catch (error) {
-    console.error(
-      "Apply Leave Error:",
-      error
-    );
-
-    // Duplicate key error
-    if (error.code === 11000) {
-      return res.status(400).json({
-        success: false,
-        message:
-          "A leave request already exists for this date",
-      });
-    }
+    console.error("Apply Leave Error:", error);
 
     return res.status(500).json({
       success: false,
-      message: error.message,
+      message: error.message || "Something went wrong while applying leave",
     });
   }
 };
-
 
 // =====================================================
 // Get Logged-in Doctor Leaves
@@ -150,9 +230,7 @@ const getMyLeaves = async (req, res) => {
     // Find Doctor
     // -----------------------------------------------
 
-    const doctor = await Doctor.findOne({
-      user: req.user._id,
-    });
+    const doctor = await getDoctor(req.user._id);
 
     if (!doctor) {
       return res.status(404).json({
@@ -162,14 +240,14 @@ const getMyLeaves = async (req, res) => {
     }
 
     // -----------------------------------------------
-    // Get Leaves
+    // Get Doctor Leaves
     // -----------------------------------------------
 
-    const leaves = await Leave.find({
+    const leaves = await DoctorLeave.find({
       doctor: doctor._id,
     })
       .sort({
-        leaveDate: -1,
+        fromDate: -1,
         createdAt: -1,
       })
       .lean();
@@ -180,10 +258,7 @@ const getMyLeaves = async (req, res) => {
       leaves,
     });
   } catch (error) {
-    console.error(
-      "Get My Leaves Error:",
-      error
-    );
+    console.error("Get My Leaves Error:", error);
 
     return res.status(500).json({
       success: false,
@@ -191,7 +266,6 @@ const getMyLeaves = async (req, res) => {
     });
   }
 };
-
 
 // =====================================================
 // Cancel Leave
@@ -204,9 +278,7 @@ const cancelLeave = async (req, res) => {
     // Find Doctor
     // -----------------------------------------------
 
-    const doctor = await Doctor.findOne({
-      user: req.user._id,
-    });
+    const doctor = await getDoctor(req.user._id);
 
     if (!doctor) {
       return res.status(404).json({
@@ -216,30 +288,23 @@ const cancelLeave = async (req, res) => {
     }
 
     // -----------------------------------------------
-    // Find Leave
+    // Find Active Leave
     // -----------------------------------------------
 
-    const leave = await Leave.findOne({
+    const leave = await DoctorLeave.findOne({
       _id: req.params.id,
+
       doctor: doctor._id,
+
+      status: "Active",
+
+      isActive: true,
     });
 
     if (!leave) {
       return res.status(404).json({
         success: false,
-        message: "Leave request not found",
-      });
-    }
-
-    // -----------------------------------------------
-    // Only Pending Leave Can Be Cancelled
-    // -----------------------------------------------
-
-    if (leave.status !== "Pending") {
-      return res.status(400).json({
-        success: false,
-        message:
-          "Only pending leave requests can be cancelled",
+        message: "Active leave not found",
       });
     }
 
@@ -249,18 +314,21 @@ const cancelLeave = async (req, res) => {
 
     leave.status = "Cancelled";
 
+    leave.isActive = false;
+
     await leave.save();
+
+    // -----------------------------------------------
+    // Response
+    // -----------------------------------------------
 
     return res.json({
       success: true,
-      message: "Leave request cancelled successfully",
+      message: "Leave cancelled successfully",
       leave,
     });
   } catch (error) {
-    console.error(
-      "Cancel Leave Error:",
-      error
-    );
+    console.error("Cancel Leave Error:", error);
 
     return res.status(500).json({
       success: false,
@@ -269,6 +337,40 @@ const cancelLeave = async (req, res) => {
   }
 };
 
+// =====================================================
+// Check Doctor Leave For Specific Date
+//
+// This helper can be used from appointment/schedule
+// controller.
+//
+// Returns active leave if doctor is unavailable.
+// Returns null if doctor is available.
+// =====================================================
+
+const checkDoctorLeave = async (doctorId, selectedDate) => {
+  try {
+    const date = new Date(selectedDate);
+
+    if (Number.isNaN(date.getTime())) {
+      return null;
+    }
+
+    date.setHours(0, 0, 0, 0);
+
+    const leave = await DoctorLeave.findOne({
+      doctor: doctorId,          // ← correct (comes from parameter)
+      status: "Active",
+      isActive: true,
+      fromDate: { $lte: date },  // ← correct (local variable)
+      toDate: { $gte: date },
+    });
+
+    return leave || null;
+  } catch (error) {
+    console.error("Check Doctor Leave Error:", error);
+    return null;
+  }
+};
 
 // =====================================================
 // Export
@@ -278,4 +380,5 @@ module.exports = {
   applyLeave,
   getMyLeaves,
   cancelLeave,
+  checkDoctorLeave,
 };

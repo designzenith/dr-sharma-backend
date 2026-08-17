@@ -1,16 +1,25 @@
+require("dotenv").config();
+
 const express = require("express");
-const dotenv = require("dotenv");
+const http = require("http");
 const cors = require("cors");
+const dns = require("dns");
 const path = require("path");
-const dns = require("node:dns");
+const { Server } = require("socket.io");
+
+// =====================================================
+// Config / Database
+// =====================================================
 
 const connectDB = require("./config/db");
 
 // =====================================================
-// Environment
+// App
 // =====================================================
 
-dotenv.config();
+const app = express();
+
+const PORT = process.env.PORT || 5000;
 
 // =====================================================
 // DNS Fix
@@ -22,21 +31,13 @@ dns.setServers([
 ]);
 
 // =====================================================
-// App
-// =====================================================
-
-const app = express();
-
-const PORT = process.env.PORT || 5000;
-
-// =====================================================
 // Database
 // =====================================================
 
 connectDB();
 
 // =====================================================
-// Middleware
+// CORS
 // =====================================================
 
 const allowedOrigins = [
@@ -44,29 +45,31 @@ const allowedOrigins = [
   "https://dr-frontend-azure.vercel.app",
 ];
 
-app.use(
-  cors({
-    origin: function (origin, callback) {
-      // Allow requests without origin
-      // such as Postman/server-to-server
-      if (!origin) {
-        return callback(null, true);
-      }
+const corsOptions = {
+  origin: function (origin, callback) {
+    // Allow requests without origin
+    // Example: Postman / server-to-server
+    if (!origin) {
+      return callback(null, true);
+    }
 
-      if (allowedOrigins.includes(origin)) {
-        return callback(null, true);
-      }
+    if (allowedOrigins.includes(origin)) {
+      return callback(null, true);
+    }
 
-      return callback(
-        new Error(
-          `CORS blocked for origin: ${origin}`
-        )
-      );
-    },
+    return callback(
+      new Error(`CORS blocked for origin: ${origin}`)
+    );
+  },
 
-    credentials: true,
-  })
-);
+  credentials: true,
+};
+
+app.use(cors(corsOptions));
+
+// =====================================================
+// Body Parsers
+// =====================================================
 
 app.use(express.json());
 
@@ -84,6 +87,13 @@ app.get("/", (req, res) => {
   res.status(200).json({
     success: true,
     message: "Dr. Sharma Backend Running",
+  });
+});
+
+app.get("/health", (req, res) => {
+  res.status(200).json({
+    ok: true,
+    message: "Server is running",
   });
 });
 
@@ -177,6 +187,52 @@ app.use(
 );
 
 // =====================================================
+// HTTP Server
+// =====================================================
+
+const server = http.createServer(app);
+
+// =====================================================
+// Socket.io
+// =====================================================
+
+const io = new Server(server, {
+  cors: {
+    origin: function (origin, callback) {
+      // Allow requests without origin
+      if (!origin) {
+        return callback(null, true);
+      }
+
+      if (allowedOrigins.includes(origin)) {
+        return callback(null, true);
+      }
+
+      return callback(
+        new Error(
+          `Socket CORS blocked for origin: ${origin}`
+        )
+      );
+    },
+
+    methods: ["GET", "POST"],
+
+    credentials: true,
+  },
+});
+
+// =====================================================
+// Consultation Socket
+// IMPORTANT: io must exist before this
+// =====================================================
+
+const consultationSocket = require(
+  "./socket/consultationSocket"
+);
+
+consultationSocket(io);
+
+// =====================================================
 // 404 Handler
 // IMPORTANT:
 // Keep this AFTER all API routes.
@@ -204,8 +260,14 @@ app.use(errorHandler);
 // Start Server
 // =====================================================
 
-app.listen(PORT, () => {
+server.listen(PORT, () => {
   console.log(
-    `🚀 Server running on http://localhost:${PORT}`
+    `Server running on port ${PORT}`
   );
+
+  console.log(
+    `HTTP API: http://localhost:${PORT}`
+  );
+
+ 
 });

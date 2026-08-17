@@ -1,41 +1,45 @@
-const addTimeSlot = async (req, res) => {
-  try {
-    const doctor = await getDoctor(req.user._id);
+const mongoose = require("mongoose");
 
-    if (!doctor) {
-      return res.status(404).json({
-        success: false,
-        message: "Doctor profile not found",
-      });
-    }
+const timeSlotSchema = new mongoose.Schema(
+  {
+    startTime: {
+      type: String,
+      required: true,
+    },
+    endTime: {
+      type: String,
+      required: true,
+    },
+    consultationType: {
+      type: String,
+      enum: ["video", "audio", "clinic"],
+      default: "video",
+    },
+    isBooked: {
+      type: Boolean,
+      default: false,
+    },
+    maxPatients: {
+      type: Number,
+      default: 1,
+    },
+    slotDuration: {
+      type: Number,
+      default: 30, // minutes
+    },
+    isActive: {
+      type: Boolean,
+      default: true,
+    },
+  },
+  { _id: false }
+);
 
-    const {
-      day,
-      startTime,
-      endTime,
-      consultationType,
-      maxPatients,
-      slotDuration,
-    } = req.body;
-
-    // -----------------------------------
-    // Validation
-    // -----------------------------------
-
-    if (
-      !day ||
-      !startTime ||
-      !endTime
-    ) {
-      return res.status(400).json({
-        success: false,
-        message:
-          "Day, start time and end time are required",
-      });
-    }
-
-    if (
-      ![
+const dayScheduleSchema = new mongoose.Schema(
+  {
+    day: {
+      type: String,
+      enum: [
         "Monday",
         "Tuesday",
         "Wednesday",
@@ -43,177 +47,54 @@ const addTimeSlot = async (req, res) => {
         "Friday",
         "Saturday",
         "Sunday",
-      ].includes(day)
-    ) {
-      return res.status(400).json({
-        success: false,
-        message: "Invalid day",
-      });
-    }
+      ],
+      required: true,
+    },
+    isAvailable: {
+      type: Boolean,
+      default: true,
+    },
+    breakStart: {
+      type: String,
+      default: "",
+    },
+    breakEnd: {
+      type: String,
+      default: "",
+    },
+    slots: {
+      type: [timeSlotSchema],
+      default: [],
+    },
+  },
+  { _id: false }
+);
 
-    if (
-      !["video", "audio", "clinic"].includes(
-        consultationType
-      )
-    ) {
-      return res.status(400).json({
-        success: false,
-        message: "Invalid consultation type",
-      });
-    }
-
-    // -----------------------------------
-    // Time Validation
-    // -----------------------------------
-
-    if (startTime >= endTime) {
-      return res.status(400).json({
-        success: false,
-        message:
-          "End time must be later than start time",
-      });
-    }
-
-    // -----------------------------------
-    // Find Schedule
-    // -----------------------------------
-
-    const schedule =
-      await Schedule.findOne({
-        doctor: doctor._id,
-      });
-
-    if (!schedule) {
-      return res.status(404).json({
-        success: false,
-        message:
-          "Schedule not found. Please load your schedule first.",
-      });
-    }
-
-    // -----------------------------------
-    // Find Day
-    // -----------------------------------
-
-    const dayData =
-      schedule.weeklySchedule.find(
-        (item) => item.day === day
-      );
-
-    if (!dayData) {
-      return res.status(404).json({
-        success: false,
-        message: "Day not found",
-      });
-    }
-
-    // -----------------------------------
-    // Check Day Availability
-    // -----------------------------------
-
-    if (!dayData.isAvailable) {
-      return res.status(400).json({
-        success: false,
-        message:
-          `${day} is currently unavailable`,
-      });
-    }
-
-    // -----------------------------------
-    // Check Break
-    // -----------------------------------
-
-    if (
-      dayData.breakStart &&
-      dayData.breakEnd
-    ) {
-      const overlapsBreak =
-        startTime < dayData.breakEnd &&
-        endTime > dayData.breakStart;
-
-      if (overlapsBreak) {
-        return res.status(400).json({
-          success: false,
-          message:
-            "This slot overlaps with your break time",
-        });
-      }
-    }
-
-    // -----------------------------------
-    // Check Overlapping Slots
-    // -----------------------------------
-
-    const overlappingSlot =
-      dayData.slots.find((slot) => {
-        return (
-          startTime < slot.endTime &&
-          endTime > slot.startTime
-        );
-      });
-
-    if (overlappingSlot) {
-      return res.status(400).json({
-        success: false,
-        message:
-          `Slot overlaps with ${overlappingSlot.startTime} - ${overlappingSlot.endTime}`,
-      });
-    }
-
-    // -----------------------------------
-    // Add Slot
-    // -----------------------------------
-
-    dayData.slots.push({
-      startTime,
-      endTime,
-
-      consultationType:
-        consultationType || "video",
-
-      isBooked: false,
-
-      maxPatients:
-        Number(maxPatients) > 0
-          ? Number(maxPatients)
-          : 1,
-
-      slotDuration:
-        Number(slotDuration) > 0
-          ? Number(slotDuration)
-          : 30,
-
-      isActive: true,
-    });
-
-    // -----------------------------------
-    // Sort Slots
-    // -----------------------------------
-
-    dayData.slots.sort(
-      (a, b) =>
-        a.startTime.localeCompare(
-          b.startTime
-        )
-    );
-
-    await schedule.save();
-
-    return res.json({
-      success: true,
-      message:
-        "Time slot added successfully",
-      schedule,
-    });
-  } catch (error) {
-    console.error(
-      "Add time slot error:",
-      error
-    );
-
-    return res.status(500).json({
-      success: false,
-      message: error.message,
-    });
+const scheduleSchema = new mongoose.Schema(
+  {
+    doctor: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Doctor",
+      required: true,
+      unique: true,
+      index: true,
+    },
+    weeklySchedule: {
+      type: [dayScheduleSchema],
+      default: () => [
+        { day: "Monday", isAvailable: true, slots: [] },
+        { day: "Tuesday", isAvailable: true, slots: [] },
+        { day: "Wednesday", isAvailable: true, slots: [] },
+        { day: "Thursday", isAvailable: true, slots: [] },
+        { day: "Friday", isAvailable: true, slots: [] },
+        { day: "Saturday", isAvailable: true, slots: [] },
+        { day: "Sunday", isAvailable: true, slots: [] },
+      ],
+    },
+  },
+  {
+    timestamps: true,
   }
-};
+);
+
+module.exports = mongoose.model("Schedule", scheduleSchema);

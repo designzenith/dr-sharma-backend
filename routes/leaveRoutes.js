@@ -10,29 +10,34 @@ const {
   cancelLeave,
 } = require("../controllers/leaveController");
 
-
+// ==========================================
 // Apply Leave
+// POST /api/leaves
+// ==========================================
 router.post(
   "/",
   auth,
   applyLeave
 );
 
-
-// Get My Leaves
+// ==========================================
+// Get Doctor's Leaves
+// GET /api/leaves
+// ==========================================
 router.get(
   "/",
   auth,
   getMyLeaves
 );
 
-
-// Cancel Pending Leave
+// ==========================================
+// Cancel Doctor Leave
+// PUT /api/leaves/:id/cancel
+// ==========================================
 router.put(
   "/:id/cancel",
   auth,
   cancelLeave
 );
-
 
 module.exports = router;
