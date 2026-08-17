@@ -6,9 +6,23 @@ const Doctor = require("../models/Doctor");
 
 const addDoctor = async (req, res) => {
   try {
-    const userId = req.user._id;
+    console.log("========== ADD DOCTOR ==========");
+    console.log("req.user:", req.user);
+    console.log("req.user._id:", req.user?._id);
+    console.log("req.user.role:", req.user?.role);
+    console.log("Request body:", req.body);
 
-    // Make sure only doctors can create doctor profile
+    // Get logged-in doctor's User ID
+    const userId = req.user?._id;
+
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        message: "Authenticated user ID is missing",
+      });
+    }
+
+    // Only doctors can create doctor profile
     if (req.user.role !== "doctor") {
       return res.status(403).json({
         success: false,
@@ -16,7 +30,7 @@ const addDoctor = async (req, res) => {
       });
     }
 
-    // Check by user ID
+    // Check existing doctor profile
     const existingDoctor = await Doctor.findOne({
       user: userId,
     });
@@ -29,7 +43,7 @@ const addDoctor = async (req, res) => {
       });
     }
 
-    // Check email separately
+    // Check email
     const existingEmail = await Doctor.findOne({
       email: req.body.email?.toLowerCase(),
     });
@@ -41,6 +55,7 @@ const addDoctor = async (req, res) => {
       });
     }
 
+    // Create doctor profile
     const doctor = await Doctor.create({
       user: userId,
 
@@ -76,6 +91,13 @@ const addDoctor = async (req, res) => {
       "name email phone"
     );
 
+    console.log(
+      "Doctor created successfully:",
+      doctor._id
+    );
+
+    console.log("================================");
+
     return res.status(201).json({
       success: true,
       message: "Doctor profile created successfully",
@@ -84,7 +106,7 @@ const addDoctor = async (req, res) => {
 
   } catch (error) {
     console.error(
-      "Add Doctor Error:",
+      "ADD DOCTOR ERROR:",
       error
     );
 
@@ -94,7 +116,6 @@ const addDoctor = async (req, res) => {
     });
   }
 };
-
 // =====================================================
 // Get All Doctors
 // =====================================================
