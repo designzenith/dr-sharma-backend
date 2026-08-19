@@ -167,8 +167,7 @@ app.use(
 
 app.use(
   "/api/consult",
-   require("./routes/consult")
-  );
+   require("./routes/consult"));
 
 // =====================================================
 // Upload Routes
