@@ -57,12 +57,7 @@ router.get(
 // PATIENT HISTORY
 // =====================================================
 
-// GET /api/appointments/history
-router.get(
-  "/history",
-  auth,
-  patientHistory
-);
+
 // Patient Appointments By User ID
 // GET /api/appointments/patient/:id
 router.get(
