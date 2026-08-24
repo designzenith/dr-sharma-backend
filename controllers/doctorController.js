@@ -721,3 +721,13 @@ module.exports = {
   deleteDoctor,
   getSpecializations,
 };
+module.exports = {
+  addDoctor,
+  getDoctors,
+  getDoctor,
+  getMyDoctorProfile,
+  updateDoctor,
+  updateConsultationType,
+  deleteDoctor,
+  getSpecializations,
+};
