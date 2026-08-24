@@ -1,5 +1,9 @@
 const mongoose = require("mongoose");
 
+// =====================================================
+// Doctor Schema
+// =====================================================
+
 const doctorSchema = new mongoose.Schema(
   {
     // =====================================================
@@ -71,10 +75,20 @@ const doctorSchema = new mongoose.Schema(
       default: 0,
     },
 
+    // Doctor can provide one or multiple
+    // consultation types
+    //
+    // Examples:
+    // ["video"]
+    // ["audio"]
+    // ["clinic"]
+    // ["video", "audio"]
+    // ["video", "audio", "clinic"]
+
     consultationType: {
       type: [String],
       enum: ["video", "audio", "clinic"],
-      default: "video",
+      default: ["video"],
     },
 
     // =====================================================
@@ -126,4 +140,12 @@ const doctorSchema = new mongoose.Schema(
   }
 );
 
-module.exports = mongoose.model("Doctor", doctorSchema);
+// =====================================================
+// Export Doctor Model
+// =====================================================
+
+module.exports =
+  mongoose.model(
+    "Doctor",
+    doctorSchema
+  );

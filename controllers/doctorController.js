@@ -1,69 +1,163 @@
 const Doctor = require("../models/Doctor");
 
 // =====================================================
+// Helper: Get User ID
+// =====================================================
+
+const getUserId = (req) => {
+  return req.user?._id || req.user?.id;
+};
+
+// =====================================================
+// Helper: Normalize Consultation Types
+// =====================================================
+const normalizeConsultationTypes = (value) => {
+  if (!value) {
+    return ["video"];
+  }
+
+  if (!Array.isArray(value)) {
+    value = [value];
+  }
+
+  const allowedTypes = [
+    "video",
+    "audio",
+    "clinic",
+  ];
+
+  const types = value.filter((type) =>
+    allowedTypes.includes(type)
+  );
+
+  return types.length > 0
+    ? types
+    : ["video"];
+};
+
+// =====================================================
 // Add Doctor
 // =====================================================
 
 const addDoctor = async (req, res) => {
   try {
-    const userId = req.user._id;
+    const userId = getUserId(req);
 
-    // Make sure only doctors can create doctor profile
-    if (req.user.role !== "doctor") {
-      return res.status(403).json({
+    // -------------------------------------------------
+    // Authentication
+    // -------------------------------------------------
+
+    if (!userId) {
+      return res.status(401).json({
         success: false,
-        message: "Only doctors can create doctor profiles",
+        message:
+          "User ID not found. Please login again.",
       });
     }
 
-    // Check by user ID
-    const existingDoctor = await Doctor.findOne({
-      user: userId,
-    });
+    // -------------------------------------------------
+    // Doctor role
+    // -------------------------------------------------
+
+    if (req.user.role !== "doctor") {
+      return res.status(403).json({
+        success: false,
+        message:
+          "Only doctors can create doctor profiles",
+      });
+    }
+
+    // -------------------------------------------------
+    // Existing doctor
+    // -------------------------------------------------
+
+    const existingDoctor =
+      await Doctor.findOne({
+        user: userId,
+      });
 
     if (existingDoctor) {
       return res.status(400).json({
         success: false,
-        message: "Doctor profile already exists",
+        message:
+          "Doctor profile already exists",
         doctor: existingDoctor,
       });
     }
 
-    // Check email separately
-    const existingEmail = await Doctor.findOne({
-      email: req.body.email?.toLowerCase(),
-    });
+    // -------------------------------------------------
+    // Existing email
+    // -------------------------------------------------
 
-    if (existingEmail) {
-      return res.status(400).json({
-        success: false,
-        message: "A doctor profile with this email already exists",
-      });
+    const email =
+      req.body.email?.toLowerCase();
+
+    if (email) {
+      const existingEmail =
+        await Doctor.findOne({
+          email,
+        });
+
+      if (existingEmail) {
+        return res.status(400).json({
+          success: false,
+          message:
+            "A doctor profile with this email already exists",
+        });
+      }
     }
+
+    // -------------------------------------------------
+    // Consultation Types
+    // -------------------------------------------------
+
+    const consultationTypes =
+      normalizeConsultationTypes(
+        req.body.consultationType
+      );
+
+    // -------------------------------------------------
+    // Create Doctor
+    // -------------------------------------------------
 
     const doctor = await Doctor.create({
       user: userId,
 
       name: req.body.name,
-      email: req.body.email?.toLowerCase(),
+
+      email: email,
+
       phone: req.body.phone,
 
-      specialization: req.body.specialization,
-      icon: req.body.icon || "🩺",
+      specialization:
+        req.body.specialization,
 
-      qualification: req.body.qualification,
-      experience: req.body.experience,
+      icon:
+        req.body.icon || "🩺",
 
-      consultationFee: req.body.consultationFee,
+      qualification:
+        req.body.qualification,
 
-      hospital: req.body.hospital,
-      address: req.body.address,
+      experience:
+        req.body.experience,
 
-      about: req.body.about,
-      image: req.body.image,
+      consultationFee:
+        req.body.consultationFee,
+
+      hospital:
+        req.body.hospital,
+
+      address:
+        req.body.address,
+
+      about:
+        req.body.about,
+
+      image:
+        req.body.image,
 
       consultationType:
-        req.body.consultationType || "video",
+        consultationTypes,
 
       available:
         req.body.available !== undefined
@@ -78,10 +172,10 @@ const addDoctor = async (req, res) => {
 
     return res.status(201).json({
       success: true,
-      message: "Doctor profile created successfully",
+      message:
+        "Doctor profile created successfully",
       doctor,
     });
-
   } catch (error) {
     console.error(
       "Add Doctor Error:",
@@ -101,11 +195,15 @@ const addDoctor = async (req, res) => {
 
 const getDoctors = async (req, res) => {
   try {
-    const doctors = await Doctor.find()
-      .populate("user", "name email phone")
-      .sort({
-        createdAt: -1,
-      });
+    const doctors =
+      await Doctor.find()
+        .populate(
+          "user",
+          "name email phone"
+        )
+        .sort({
+          createdAt: -1,
+        });
 
     return res.status(200).json({
       success: true,
@@ -113,7 +211,10 @@ const getDoctors = async (req, res) => {
       doctors,
     });
   } catch (error) {
-    console.error("Get Doctors Error:", error);
+    console.error(
+      "Get Doctors Error:",
+      error
+    );
 
     return res.status(500).json({
       success: false,
@@ -128,17 +229,19 @@ const getDoctors = async (req, res) => {
 
 const getDoctor = async (req, res) => {
   try {
-    const doctor = await Doctor.findById(
-      req.params.id
-    ).populate(
-      "user",
-      "name email phone"
-    );
+    const doctor =
+      await Doctor.findById(
+        req.params.id
+      ).populate(
+        "user",
+        "name email phone"
+      );
 
     if (!doctor) {
       return res.status(404).json({
         success: false,
-        message: "Doctor not found",
+        message:
+          "Doctor not found",
       });
     }
 
@@ -147,7 +250,10 @@ const getDoctor = async (req, res) => {
       doctor,
     });
   } catch (error) {
-    console.error("Get Doctor Error:", error);
+    console.error(
+      "Get Doctor Error:",
+      error
+    );
 
     return res.status(500).json({
       success: false,
@@ -159,42 +265,35 @@ const getDoctor = async (req, res) => {
 // =====================================================
 // Get Logged-in Doctor Profile
 // =====================================================
-// IMPORTANT:
-// If profile does not exist, create an empty profile
-// automatically for the logged-in doctor.
-// =====================================================
 
-const getMyDoctorProfile = async (req, res) => {
+const getMyDoctorProfile = async (
+  req,
+  res
+) => {
   try {
-    // Support both possible auth middleware formats
-    const userId = req.user?._id || req.user?.id;
-
-    console.log("=================================");
-    console.log("GET MY DOCTOR PROFILE");
-    console.log("req.user:", req.user);
-    console.log("userId:", userId);
-    console.log("=================================");
+    const userId = getUserId(req);
 
     if (!userId) {
       return res.status(401).json({
         success: false,
-        message: "User ID not found in authentication",
+        message:
+          "User ID not found in authentication",
       });
     }
 
-    const doctor = await Doctor.findOne({
-      user: userId,
-    }).populate(
-      "user",
-      "name email phone"
-    );
-
-    console.log("Doctor found:", doctor);
+    const doctor =
+      await Doctor.findOne({
+        user: userId,
+      }).populate(
+        "user",
+        "name email phone"
+      );
 
     if (!doctor) {
       return res.status(404).json({
         success: false,
-        message: "Doctor profile not found",
+        message:
+          "Doctor profile not found",
       });
     }
 
@@ -202,7 +301,6 @@ const getMyDoctorProfile = async (req, res) => {
       success: true,
       doctor,
     });
-
   } catch (error) {
     console.error(
       "Get My Doctor Profile Error:",
@@ -215,13 +313,26 @@ const getMyDoctorProfile = async (req, res) => {
     });
   }
 };
+
 // =====================================================
 // Update Doctor
 // =====================================================
 
-const updateDoctor = async (req, res) => {
+const updateDoctor = async (
+  req,
+  res
+) => {
   try {
-    const userId = req.user._id;
+    const userId = getUserId(req);
+
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        message:
+          "User ID not found. Please login again.",
+      });
+    }
+
     const {
       name,
       email,
@@ -239,17 +350,18 @@ const updateDoctor = async (req, res) => {
       available,
     } = req.body;
 
-    // -----------------------------------------------
-    // Find existing profile
-    // -----------------------------------------------
+    // -------------------------------------------------
+    // Find doctor
+    // -------------------------------------------------
 
-    let doctor = await Doctor.findOne({
-      user: userId,
-    });
+    let doctor =
+      await Doctor.findOne({
+        user: userId,
+      });
 
-    // -----------------------------------------------
-    // If profile doesn't exist, CREATE it
-    // -----------------------------------------------
+    // -------------------------------------------------
+    // Create if missing
+    // -------------------------------------------------
 
     if (!doctor) {
       doctor = new Doctor({
@@ -257,83 +369,130 @@ const updateDoctor = async (req, res) => {
       });
     }
 
-    // -----------------------------------------------
-    // Update fields
-    // -----------------------------------------------
+    // -------------------------------------------------
+    // Basic Details
+    // -------------------------------------------------
 
-    doctor.name =
-      name !== undefined
-        ? name
-        : doctor.name;
+    if (name !== undefined) {
+      doctor.name = name;
+    }
 
-    doctor.email =
-      email !== undefined
-        ? email
-        : doctor.email;
+    if (email !== undefined) {
+      doctor.email =
+        email.toLowerCase();
+    }
 
-    doctor.phone =
-      phone !== undefined
-        ? phone
-        : doctor.phone;
+    if (phone !== undefined) {
+      doctor.phone = phone;
+    }
 
-    doctor.specialization =
-      specialization !== undefined
-        ? specialization
-        : doctor.specialization;
+    // -------------------------------------------------
+    // Professional Details
+    // -------------------------------------------------
 
-    doctor.icon =
-      icon !== undefined
-        ? icon
-        : doctor.icon;
+    if (
+      specialization !==
+      undefined
+    ) {
+      doctor.specialization =
+        specialization;
+    }
 
-    doctor.qualification =
-      qualification !== undefined
-        ? qualification
-        : doctor.qualification;
+    if (icon !== undefined) {
+      doctor.icon = icon;
+    }
 
-    doctor.experience =
-      experience !== undefined
-        ? experience
-        : doctor.experience;
+    if (
+      qualification !==
+      undefined
+    ) {
+      doctor.qualification =
+        qualification;
+    }
 
-    doctor.consultationFee =
-      consultationFee !== undefined
-        ? Number(consultationFee)
-        : doctor.consultationFee;
+    if (
+      experience !==
+      undefined
+    ) {
+      doctor.experience =
+        experience;
+    }
 
-    doctor.hospital =
-      hospital !== undefined
-        ? hospital
-        : doctor.hospital;
+    // -------------------------------------------------
+    // Consultation Fee
+    // -------------------------------------------------
 
-    doctor.address =
-      address !== undefined
-        ? address
-        : doctor.address;
+    if (
+      consultationFee !==
+      undefined
+    ) {
+      doctor.consultationFee =
+        Number(consultationFee);
+    }
 
-    doctor.about =
-      about !== undefined
-        ? about
-        : doctor.about;
+    // -------------------------------------------------
+    // Hospital
+    // -------------------------------------------------
 
-    doctor.image =
-      image !== undefined
-        ? image
-        : doctor.image;
+    if (hospital !== undefined) {
+      doctor.hospital = hospital;
+    }
 
-    doctor.consultationType =
-      consultationType !== undefined
-        ? consultationType
-        : doctor.consultationType;
+    if (address !== undefined) {
+      doctor.address = address;
+    }
 
-    doctor.available =
-      available !== undefined
-        ? available
-        : doctor.available;
+    // -------------------------------------------------
+    // About
+    // -------------------------------------------------
 
-    // -----------------------------------------------
+    if (about !== undefined) {
+      doctor.about = about;
+    }
+
+    // -------------------------------------------------
+    // Image
+    // -------------------------------------------------
+
+    if (image !== undefined) {
+      doctor.image = image;
+    }
+
+    // -------------------------------------------------
+    // Consultation Types
+    // -------------------------------------------------
+
+    if (
+      consultationType !==
+      undefined
+    ) {
+      doctor.consultationType =
+        normalizeConsultationTypes(
+          consultationType
+        );
+    }
+
+    // -------------------------------------------------
+    // Availability
+    // -------------------------------------------------
+
+    if (
+      available !==
+      undefined
+    ) {
+      doctor.available =
+        available;
+    }
+
+    // -------------------------------------------------
+    // Make sure user is connected
+    // -------------------------------------------------
+
+    doctor.user = userId;
+
+    // -------------------------------------------------
     // Save
-    // -----------------------------------------------
+    // -------------------------------------------------
 
     await doctor.save();
 
@@ -350,7 +509,73 @@ const updateDoctor = async (req, res) => {
     });
   } catch (error) {
     console.error(
-      "Update doctor error:",
+      "Update Doctor Error:",
+      error
+    );
+
+    return res.status(500).json({
+      success: false,
+      message: error.message,
+    });
+  }
+};
+
+// =====================================================
+// Update Consultation Type Only
+// =====================================================
+
+const updateConsultationType = async (
+  req,
+  res
+) => {
+  try {
+    const userId = getUserId(req);
+
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        message:
+          "User ID not found. Please login again.",
+      });
+    }
+
+    const consultationTypes =
+      normalizeConsultationTypes(
+        req.body.consultationType
+      );
+
+    const doctor =
+      await Doctor.findOne({
+        user: userId,
+      });
+
+    if (!doctor) {
+      return res.status(404).json({
+        success: false,
+        message:
+          "Doctor profile not found",
+      });
+    }
+
+    doctor.consultationType =
+      consultationTypes;
+
+    await doctor.save();
+
+    await doctor.populate(
+      "user",
+      "name email phone"
+    );
+
+    return res.status(200).json({
+      success: true,
+      message:
+        "Consultation types updated successfully",
+      doctor,
+    });
+  } catch (error) {
+    console.error(
+      "Update Consultation Type Error:",
       error
     );
 
@@ -365,17 +590,31 @@ const updateDoctor = async (req, res) => {
 // Delete Doctor
 // =====================================================
 
-const deleteDoctor = async (req, res) => {
+const deleteDoctor = async (
+  req,
+  res
+) => {
   try {
+    const userId = getUserId(req);
+
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        message:
+          "User ID not found. Please login again.",
+      });
+    }
+
     const doctor =
       await Doctor.findOneAndDelete({
-        user: req.user._id,
+        user: userId,
       });
 
     if (!doctor) {
       return res.status(404).json({
         success: false,
-        message: "Doctor profile not found",
+        message:
+          "Doctor profile not found",
       });
     }
 
@@ -401,7 +640,10 @@ const deleteDoctor = async (req, res) => {
 // Get All Specializations
 // =====================================================
 
-const getSpecializations = async (req, res) => {
+const getSpecializations = async (
+  req,
+  res
+) => {
   try {
     const specializations =
       await Doctor.aggregate([
@@ -432,7 +674,8 @@ const getSpecializations = async (req, res) => {
           $project: {
             _id: 0,
 
-            specialization: "$_id",
+            specialization:
+              "$_id",
 
             count: 1,
 
@@ -474,6 +717,7 @@ module.exports = {
   getDoctor,
   getMyDoctorProfile,
   updateDoctor,
+  updateConsultationType,
   deleteDoctor,
   getSpecializations,
 };
