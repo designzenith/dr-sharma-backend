@@ -3,6 +3,7 @@ const router = express.Router();
 
 const {
   register,
+    verifyRegisterOTP,
   login,
   sendLoginOTP,
   verifyLoginOTP,
@@ -10,6 +11,7 @@ const {
   verifyForgotPasswordOTP,
   resetPassword,
   changePassword,
+
 } = require("../controllers/authController");
 
 const protect = require("../middleware/auth");
@@ -18,6 +20,10 @@ const protect = require("../middleware/auth");
 // REGISTER & LOGIN
 // =====================================================
 router.post("/register", register);
+router.post(
+  "/verify-register-otp",
+  verifyRegisterOTP
+);
 router.post("/login", login);
 
 // =====================================================
