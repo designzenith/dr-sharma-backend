@@ -158,12 +158,9 @@ const updateDoctorSchedule = async (
 // Add Time Slot
 // POST /api/schedule/slot
 // =====================================================
-
 const addTimeSlot = async (req, res) => {
   try {
-    const doctor = await getDoctor(
-      req.user._id
-    );
+    const doctor = await getDoctor(req.user._id);
 
     if (!doctor) {
       return res.status(404).json({
@@ -181,111 +178,60 @@ const addTimeSlot = async (req, res) => {
       slotDuration = 30,
     } = req.body;
 
-    // -----------------------------------------------
-    // Required fields
-    // -----------------------------------------------
-
-    if (
-      !day ||
-      !startTime ||
-      !endTime
-    ) {
+    if (!day || !startTime || !endTime) {
       return res.status(400).json({
         success: false,
-        message:
-          "Day, start time and end time are required",
+        message: "Day, start time and end time are required",
       });
     }
 
-    // -----------------------------------------------
-    // Validate time
-    // -----------------------------------------------
-
-    if (
-      !isValidTime(startTime) ||
-      !isValidTime(endTime)
-    ) {
+    if (!isValidTime(startTime) || !isValidTime(endTime)) {
       return res.status(400).json({
         success: false,
-        message:
-          "Invalid time format. Use HH:MM",
+        message: "Invalid time format. Use HH:MM",
       });
     }
 
     if (startTime >= endTime) {
       return res.status(400).json({
         success: false,
-        message:
-          "End time must be later than start time",
+        message: "End time must be later than start time",
       });
     }
 
-    // -----------------------------------------------
-    // Validate consultation
-    // -----------------------------------------------
-
-    if (
-      ![
-        "video",
-        "audio",
-        "clinic",
-      ].includes(consultationType)
-    ) {
+    if (!["video", "audio", "clinic"].includes(consultationType)) {
       return res.status(400).json({
         success: false,
-        message:
-          "Invalid consultation type",
+        message: "Invalid consultation type",
       });
     }
 
-    // -----------------------------------------------
-    // Validate numeric fields
-    // -----------------------------------------------
-
-    if (
-      Number(maxPatients) < 1
-    ) {
+    if (Number(maxPatients) < 1) {
       return res.status(400).json({
         success: false,
-        message:
-          "Maximum patients must be at least 1",
+        message: "Maximum patients must be at least 1",
       });
     }
 
-    if (
-      Number(slotDuration) < 5
-    ) {
+    if (Number(slotDuration) < 5) {
       return res.status(400).json({
         success: false,
-        message:
-          "Slot duration must be at least 5 minutes",
+        message: "Slot duration must be at least 5 minutes",
       });
     }
 
-    // -----------------------------------------------
-    // Find schedule
-    // -----------------------------------------------
-
-    const schedule = await getSchedule(
-      doctor._id
-    );
+    const schedule = await getSchedule(doctor._id);
 
     if (!schedule) {
       return res.status(404).json({
         success: false,
-        message:
-          "Schedule not found",
+        message: "Schedule not found",
       });
     }
 
-    // -----------------------------------------------
-    // Find day
-    // -----------------------------------------------
-
-    const dayData =
-      schedule.weeklySchedule.find(
-        (item) => item.day === day
-      );
+    const dayData = schedule.weeklySchedule.find(
+      (item) => item.day === day
+    );
 
     if (!dayData) {
       return res.status(404).json({
@@ -294,64 +240,40 @@ const addTimeSlot = async (req, res) => {
       });
     }
 
-    // -----------------------------------------------
-    // Check day availability
-    // -----------------------------------------------
-
     if (!dayData.isAvailable) {
       return res.status(400).json({
         success: false,
-        message:
-          `${day} is currently unavailable`,
+        message: `${day} is currently unavailable`,
       });
     }
 
-    // -----------------------------------------------
-    // Check break
-    // -----------------------------------------------
-
-    if (
-      dayData.breakStart &&
-      dayData.breakEnd
-    ) {
+    if (dayData.breakStart && dayData.breakEnd) {
       const overlapsBreak =
-        startTime <
-          dayData.breakEnd &&
-        endTime >
-          dayData.breakStart;
+        startTime < dayData.breakEnd && endTime > dayData.breakStart;
 
       if (overlapsBreak) {
         return res.status(400).json({
           success: false,
-          message:
-            "Time slot overlaps with break time",
+          message: "Time slot overlaps with break time",
         });
       }
     }
 
-    // -----------------------------------------------
-    // Check duplicate / overlapping slots
-    // -----------------------------------------------
-
-    const overlappingSlot =
-      dayData.slots.find((slot) => {
-        return (
-          slot.startTime < endTime &&
-          slot.endTime > startTime
-        );
-      });
+    // ✅ FIXED: only block same consultationType
+    const overlappingSlot = dayData.slots.find((slot) => {
+      return (
+        slot.startTime < endTime &&
+        slot.endTime > startTime &&
+        slot.consultationType === consultationType
+      );
+    });
 
     if (overlappingSlot) {
       return res.status(400).json({
         success: false,
-        message:
-          `Slot overlaps with ${overlappingSlot.startTime} - ${overlappingSlot.endTime}`,
+        message: `A ${consultationType} slot already exists between ${overlappingSlot.startTime} - ${overlappingSlot.endTime}`,
       });
     }
-
-    // -----------------------------------------------
-    // Add slot
-    // -----------------------------------------------
 
     dayData.slots.push({
       startTime,
@@ -363,29 +285,19 @@ const addTimeSlot = async (req, res) => {
       isActive: true,
     });
 
-    // -----------------------------------------------
-    // Sort slots
-    // -----------------------------------------------
-
     dayData.slots.sort((a, b) =>
-      a.startTime.localeCompare(
-        b.startTime
-      )
+      a.startTime.localeCompare(b.startTime)
     );
 
     await schedule.save();
 
     return res.status(201).json({
       success: true,
-      message:
-        "Time slot added successfully",
+      message: "Time slot added successfully",
       schedule,
     });
   } catch (error) {
-    console.error(
-      "Add time slot error:",
-      error
-    );
+    console.error("Add time slot error:", error);
 
     return res.status(500).json({
       success: false,
