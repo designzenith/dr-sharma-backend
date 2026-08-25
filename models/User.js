@@ -47,10 +47,9 @@ const userSchema = new mongoose.Schema(
     // ==========================================
     phone: {
       type: String,
-      required: [true, "Mobile number is required"],
-      unique: true,
       trim: true,
     },
+
     // ==========================================
     // FORGOT PASSWORD OTP (hashed)
     // ==========================================
@@ -80,21 +79,10 @@ const userSchema = new mongoose.Schema(
       default: null,
       select: false,
     },
-    registrationOTP: {
-      type: String,
-      default: null,
-      select: false,
-    },
-
-    registrationOTPExpires: {
-      type: Date,
-      default: null,
-      select: false,
-    },
   },
   {
     timestamps: true,
-  },
+  }
 );
 
 // ==========================================
