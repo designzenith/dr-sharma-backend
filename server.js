@@ -1,7 +1,3 @@
-// =====================================================
-// Load Environment Variables FIRST
-// =====================================================
-
 require("dotenv").config();
 
 const express = require("express");
@@ -45,34 +41,21 @@ connectDB();
 // =====================================================
 
 const allowedOrigins = [
-  // Local development
   "http://localhost:3000",
-  "http://127.0.0.1:3000",
-
-  // Production - Vercel
   "https://dr-frontend-azure.vercel.app",
 ];
 
-// =====================================================
-// CORS Options
-// =====================================================
-
 const corsOptions = {
   origin: function (origin, callback) {
-    // Allow requests without an Origin
+    // Allow requests without origin
     // Example: Postman / server-to-server
     if (!origin) {
       return callback(null, true);
     }
 
-    // Allow registered origins
     if (allowedOrigins.includes(origin)) {
       return callback(null, true);
     }
-
-    console.error(
-      `CORS blocked for origin: ${origin}`
-    );
 
     return callback(
       new Error(`CORS blocked for origin: ${origin}`)
@@ -80,27 +63,7 @@ const corsOptions = {
   },
 
   credentials: true,
-
-  methods: [
-    "GET",
-    "POST",
-    "PUT",
-    "PATCH",
-    "DELETE",
-    "OPTIONS",
-  ],
-
-  allowedHeaders: [
-    "Content-Type",
-    "Authorization",
-  ],
-
-  optionsSuccessStatus: 204,
 };
-
-// =====================================================
-// Apply CORS
-// =====================================================
 
 app.use(cors(corsOptions));
 
@@ -116,6 +79,7 @@ app.use(
   })
 );
 
+
 // =====================================================
 // Health Check
 // =====================================================
@@ -129,11 +93,8 @@ app.get("/", (req, res) => {
 
 app.get("/health", (req, res) => {
   res.status(200).json({
-    success: true,
     ok: true,
     message: "Server is running",
-    environment:
-      process.env.NODE_ENV || "development",
   });
 });
 
@@ -204,14 +165,9 @@ app.use(
   require("./routes/profileRoutes")
 );
 
-// -----------------------------------------------------
-// Consultation
-// -----------------------------------------------------
-
 app.use(
   "/api/consult",
-  require("./routes/consult")
-);
+   require("./routes/consult"));
 
 // =====================================================
 // Upload Routes
@@ -248,7 +204,7 @@ const server = http.createServer(app);
 const io = new Server(server, {
   cors: {
     origin: function (origin, callback) {
-      // Allow requests without Origin
+      // Allow requests without origin
       if (!origin) {
         return callback(null, true);
       }
@@ -257,10 +213,6 @@ const io = new Server(server, {
         return callback(null, true);
       }
 
-      console.error(
-        `Socket CORS blocked for origin: ${origin}`
-      );
-
       return callback(
         new Error(
           `Socket CORS blocked for origin: ${origin}`
@@ -268,10 +220,7 @@ const io = new Server(server, {
       );
     },
 
-    methods: [
-      "GET",
-      "POST",
-    ],
+    methods: ["GET", "POST"],
 
     credentials: true,
   },
@@ -318,32 +267,12 @@ app.use(errorHandler);
 
 server.listen(PORT, () => {
   console.log(
-    "======================================"
-  );
-
-  console.log(
     `Server running on port ${PORT}`
-  );
-
-  console.log(
-    `Environment: ${
-      process.env.NODE_ENV || "development"
-    }`
   );
 
   console.log(
     `HTTP API: http://localhost:${PORT}`
   );
 
-  console.log(
-    "Allowed Frontend Origins:"
-  );
-
-  allowedOrigins.forEach((origin) => {
-    console.log(`- ${origin}`);
-  });
-
-  console.log(
-    "======================================"
-  );
+ 
 });
