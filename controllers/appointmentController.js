@@ -1,10 +1,143 @@
+
 const Appointment = require("../models/Appointment");
 const Doctor = require("../models/Doctor");
 const User = require("../models/User");
 const { v4: uuidv4 } = require("uuid");
 const DoctorLeave = require("../models/DoctorLeave");
+const Notification = require("../models/Notification");
+const { sendSMS } = require("../utils/notify");
+const nodemailer = require("nodemailer");
+
 // or if you already exported the helper:
-const { checkDoctorLeave } = require("./leaveController"); // adjust path if needed
+// const { checkDoctorLeave } = require("./leaveController"); // adjust path if needed
+
+// =====================================================
+// EMAIL CONFIGURATION
+// =====================================================
+
+const emailTransporter = nodemailer.createTransport({
+  service: "gmail",
+  auth: {
+    user: process.env.EMAIL_USER,
+    pass: process.env.EMAIL_PASS,
+  },
+});
+
+// =====================================================
+// NOTIFICATION / EMAIL / SMS HELPERS
+// =====================================================
+
+const createAppointmentNotification = async ({
+  user,
+  appointment,
+  title,
+  message,
+  type = "general",
+}) => {
+  try {
+    if (!user || !title || !message) {
+      console.warn(
+        "Notification skipped: missing user/title/message"
+      );
+      return null;
+    }
+
+    const notification = await Notification.create({
+      user,
+      appointment: appointment?._id || appointment || null,
+      title,
+      message,
+      type,
+      isRead: false,
+    });
+
+    console.log(
+      "Notification created:",
+      notification._id.toString()
+    );
+
+    return notification;
+  } catch (error) {
+    // Notification failure must never break appointment action.
+    console.error(
+      "Create appointment notification error:",
+      error.message
+    );
+    return null;
+  }
+};
+
+const sendAppointmentEmail = async ({
+  to,
+  subject,
+  message,
+}) => {
+  try {
+    if (!to) {
+      console.warn(
+        "Email skipped: recipient email is missing."
+      );
+      return null;
+    }
+
+    if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) {
+      console.warn(
+        "Email skipped: EMAIL_USER or EMAIL_PASS is missing."
+      );
+      return null;
+    }
+
+    const result = await emailTransporter.sendMail({
+      from: `"Dr. Sharma Healthcare" <${process.env.EMAIL_USER}>`,
+      to,
+      subject,
+      text: message,
+      html: `
+        <div style="font-family: Arial, sans-serif; line-height: 1.6;">
+          <h2>${subject}</h2>
+          <p>${message}</p>
+        </div>
+      `,
+    });
+
+    console.log(
+      "Email sent successfully:",
+      result.messageId
+    );
+
+    return result;
+  } catch (error) {
+    // Email failure must never break appointment action.
+    console.error(
+      "Appointment email failed:",
+      error.message
+    );
+    return null;
+  }
+};
+
+const sendAppointmentSMS = async ({
+  to,
+  message,
+}) => {
+  try {
+    if (!to) {
+      console.warn(
+        "SMS skipped: recipient phone is missing."
+      );
+      return null;
+    }
+
+    return await sendSMS(to, message);
+  } catch (error) {
+    // SMS failure must never break appointment action.
+    console.error(
+      "Appointment SMS failed:",
+      error.message
+    );
+    return null;
+  }
+};
 // =====================================================
 // BOOK APPOINTMENT
 // Patient sends appointment request
@@ -99,6 +232,87 @@ const bookAppointment = async (req, res) => {
       appointmentTime,
       consultationType: consultationType || "video",
       status: "Pending",
+    });
+
+    // =================================================
+    // ADDED: NOTIFICATION / EMAIL / SMS
+    // Patient booked an appointment
+    // =================================================
+
+    const patientUser = await User.findById(patientId).select(
+      "name email phone"
+    );
+
+    const doctorUser = doctorProfile.user
+      ? await User.findById(doctorProfile.user).select(
+          "name email phone"
+        )
+      : null;
+
+    const bookingDate =
+      selectedDate.toLocaleDateString();
+
+    const bookingType =
+      consultationType || "video";
+
+    await createAppointmentNotification({
+      user: patientId,
+      appointment,
+      title: "Appointment Request Sent",
+      message:
+        "Your appointment request has been sent to the doctor and is waiting for approval.",
+      type: "appointment-booked",
+    });
+
+    if (doctorProfile.user) {
+      await createAppointmentNotification({
+        user: doctorProfile.user,
+        appointment,
+        title: "New Appointment Request",
+        message:
+          `${patientUser?.name || "A patient"} requested an appointment for ` +
+          `${bookingDate} at ${appointmentTime}.`,
+        type: "appointment-booked",
+      });
+    }
+
+    await sendAppointmentEmail({
+      to: patientUser?.email,
+      subject: "Appointment Request Sent",
+      message:
+        `Hello ${patientUser?.name || "Patient"},\n\n` +
+        `Your appointment request has been sent successfully.\n\n` +
+        `Doctor: ${doctorProfile.name}\n` +
+        `Date: ${bookingDate}\n` +
+        `Time: ${appointmentTime}\n` +
+        `Consultation: ${bookingType}\n\n` +
+        `Please wait for the doctor's approval.`,
+    });
+
+    await sendAppointmentEmail({
+      to: doctorUser?.email,
+      subject: "New Appointment Request",
+      message:
+        `Hello ${doctorProfile.name || "Doctor"},\n\n` +
+        `${patientUser?.name || "A patient"} has requested an appointment.\n\n` +
+        `Date: ${bookingDate}\n` +
+        `Time: ${appointmentTime}\n` +
+        `Consultation: ${bookingType}\n\n` +
+        `Please open your doctor dashboard to review the request.`,
+    });
+
+    await sendAppointmentSMS({
+      to: patientUser?.phone,
+      message:
+        `Dr. Sharma: Your appointment request was sent for ` +
+        `${bookingDate} at ${appointmentTime}. Waiting for doctor approval.`,
+    });
+
+    await sendAppointmentSMS({
+      to: doctorUser?.phone,
+      message:
+        `Dr. Sharma: New appointment request from ` +
+        `${patientUser?.name || "patient"} for ${bookingDate} at ${appointmentTime}.`,
     });
 
     const populatedAppointment = await Appointment.findById(appointment._id)
@@ -331,6 +545,47 @@ const acceptAppointment = async (req, res) => {
       "name specialization hospital image consultationFee",
     );
 
+    // =================================================
+    // ADDED: NOTIFICATION / EMAIL / SMS
+    // Doctor accepted appointment
+    // =================================================
+
+    const acceptedPatient = appointment.patient;
+    const acceptedDoctor = appointment.doctor;
+
+    await createAppointmentNotification({
+      user: acceptedPatient._id,
+      appointment,
+      title: "Appointment Accepted",
+      message:
+        `${acceptedDoctor?.name || "Your doctor"} has accepted your appointment. ` +
+        "Your appointment is now confirmed.",
+      type: "appointment-accepted",
+    });
+
+    await sendAppointmentEmail({
+      to: acceptedPatient.email,
+      subject: "Appointment Confirmed",
+      message:
+        `Hello ${acceptedPatient.name || "Patient"},\n\n` +
+        `${acceptedDoctor?.name || "Your doctor"} has accepted your appointment.\n\n` +
+        `Date: ${new Date(
+          appointment.appointmentDate
+        ).toLocaleDateString()}\n` +
+        `Time: ${appointment.appointmentTime}\n` +
+        `Consultation: ${appointment.consultationType}\n\n` +
+        "Your appointment is now confirmed.",
+    });
+
+    await sendAppointmentSMS({
+      to: acceptedPatient.phone,
+      message:
+        `Dr. Sharma: ${acceptedDoctor?.name || "Your doctor"} accepted your appointment ` +
+        `for ${new Date(
+          appointment.appointmentDate
+        ).toLocaleDateString()} at ${appointment.appointmentTime}.`,
+    });
+
     res.status(200).json({
       success: true,
       message: "Appointment confirmed successfully",
@@ -396,6 +651,49 @@ const rejectAppointment = async (req, res) => {
       req.body.reason || "Appointment cancelled by doctor";
 
     await appointment.save();
+
+    // =================================================
+    // ADDED: NOTIFICATION / EMAIL / SMS
+    // Doctor rejected/cancelled appointment
+    // =================================================
+
+    const rejectedPatient = await User.findById(
+      appointment.patient
+    ).select("name email phone");
+
+    const rejectionReason =
+      appointment.cancellationReason ||
+      "Appointment cancelled by doctor";
+
+    await createAppointmentNotification({
+      user: appointment.patient,
+      appointment,
+      title: "Appointment Cancelled",
+      message:
+        `Your appointment with Dr. ${
+          doctor.name || "Doctor"
+        } has been cancelled. Reason: ${rejectionReason}`,
+      type: "appointment-cancelled",
+    });
+
+    await sendAppointmentEmail({
+      to: rejectedPatient?.email,
+      subject: "Appointment Cancelled",
+      message:
+        `Hello ${rejectedPatient?.name || "Patient"},\n\n` +
+        `Your appointment with Dr. ${
+          doctor.name || "Doctor"
+        } has been cancelled.\n\n` +
+        `Reason: ${rejectionReason}`,
+    });
+
+    await sendAppointmentSMS({
+      to: rejectedPatient?.phone,
+      message:
+        `Dr. Sharma: Your appointment with Dr. ${
+          doctor.name || "Doctor"
+        } has been cancelled. Reason: ${rejectionReason}`,
+    });
 
     res.status(200).json({
       success: true,
@@ -618,6 +916,66 @@ const cancelAppointment = async (req, res) => {
     appointment.cancellationReason = req.body.reason || "Cancelled by patient";
 
     await appointment.save();
+
+    // =================================================
+    // ADDED: NOTIFICATION / EMAIL / SMS
+    // Patient cancelled appointment
+    // =================================================
+
+    const cancelledDoctor = await Doctor.findById(
+      appointment.doctor
+    ).select("user name");
+
+    const cancelledDoctorUser =
+      cancelledDoctor?.user
+        ? await User.findById(
+            cancelledDoctor.user
+          ).select("name email phone")
+        : null;
+
+    const cancellingPatient =
+      await User.findById(
+        appointment.patient
+      ).select("name email phone");
+
+    const patientCancellationReason =
+      appointment.cancellationReason ||
+      "Cancelled by patient";
+
+    if (cancelledDoctor?.user) {
+      await createAppointmentNotification({
+        user: cancelledDoctor.user,
+        appointment,
+        title: "Appointment Cancelled",
+        message:
+          `${cancellingPatient?.name || "Patient"} has cancelled the appointment. ` +
+          `Reason: ${patientCancellationReason}`,
+        type: "appointment-cancelled",
+      });
+    }
+
+    await sendAppointmentEmail({
+      to: cancelledDoctorUser?.email,
+      subject: "Appointment Cancelled by Patient",
+      message:
+        `Hello ${
+          cancelledDoctorUser?.name || "Doctor"
+        },\n\n` +
+        `${
+          cancellingPatient?.name || "Patient"
+        } has cancelled the appointment.\n\n` +
+        `Reason: ${patientCancellationReason}`,
+    });
+
+    await sendAppointmentSMS({
+      to: cancelledDoctorUser?.phone,
+      message:
+        `Dr. Sharma: ${
+          cancellingPatient?.name || "Patient"
+        } cancelled the appointment. Reason: ${
+          patientCancellationReason
+        }`,
+    });
 
     res.status(200).json({
       success: true,

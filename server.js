@@ -22,7 +22,7 @@ const app = express();
 const PORT = process.env.PORT || 5000;
 
 // =====================================================
-// DNS Fix
+// DNS
 // =====================================================
 
 dns.setServers([
@@ -37,17 +37,16 @@ dns.setServers([
 connectDB();
 
 // =====================================================
-// CORS
+// CORS - LOCAL DEVELOPMENT
 // =====================================================
 
 const allowedOrigins = [
   "http://localhost:3000",
-  "https://dr-frontend-azure.vercel.app",
 ];
 
 const corsOptions = {
   origin: function (origin, callback) {
-    // Allow requests without origin
+    // Allow requests without Origin
     // Example: Postman / server-to-server
     if (!origin) {
       return callback(null, true);
@@ -57,12 +56,28 @@ const corsOptions = {
       return callback(null, true);
     }
 
+    console.log("CORS blocked origin:", origin);
+
     return callback(
       new Error(`CORS blocked for origin: ${origin}`)
     );
   },
 
   credentials: true,
+
+  methods: [
+    "GET",
+    "POST",
+    "PUT",
+    "PATCH",
+    "DELETE",
+    "OPTIONS",
+  ],
+
+  allowedHeaders: [
+    "Content-Type",
+    "Authorization",
+  ],
 };
 
 app.use(cors(corsOptions));
@@ -79,7 +94,6 @@ app.use(
   })
 );
 
-
 // =====================================================
 // Health Check
 // =====================================================
@@ -93,86 +107,74 @@ app.get("/", (req, res) => {
 
 app.get("/health", (req, res) => {
   res.status(200).json({
+    success: true,
     ok: true,
     message: "Server is running",
   });
 });
 
 // =====================================================
-// API Routes
+// API ROUTES
 // =====================================================
 
-// -----------------------------------------------------
 // Authentication
-// -----------------------------------------------------
-
 app.use(
   "/api/auth",
   require("./routes/authRoutes")
 );
 
-// -----------------------------------------------------
 // Doctors
-// -----------------------------------------------------
-
 app.use(
   "/api/doctors",
   require("./routes/doctorRoutes")
 );
 
-// -----------------------------------------------------
 // Patients
-// -----------------------------------------------------
-
 app.use(
   "/api/patients",
   require("./routes/patientRoutes")
 );
 
-// -----------------------------------------------------
-// Appointments
-// -----------------------------------------------------
+// Notifications
+app.use(
+  "/api/notifications",
+  require("./routes/notificationRoutes")
+);
 
+// Reminder Job
+require("./jobs/reminderJob");
+
+// Appointments
 app.use(
   "/api/appointments",
   require("./routes/appointmentRoutes")
 );
 
-// -----------------------------------------------------
 // Schedule
-// -----------------------------------------------------
-
 app.use(
   "/api/schedule",
   require("./routes/scheduleRoutes")
 );
 
-// -----------------------------------------------------
 // Leaves
-// -----------------------------------------------------
-
 app.use(
   "/api/leaves",
   require("./routes/leaveRoutes")
 );
 
-// -----------------------------------------------------
 // Profile
-// -----------------------------------------------------
-
 app.use(
   "/api/profile",
   require("./routes/profileRoutes")
 );
 
+// Consultation
 app.use(
   "/api/consult",
-   require("./routes/consult"));
+  require("./routes/consult")
+);
 
-// =====================================================
-// Upload Routes
-// =====================================================
-
+// Upload
 const uploadRoutes = require("./routes/uploadRoutes");
 
 app.use(
@@ -192,35 +194,23 @@ app.use(
 );
 
 // =====================================================
-// HTTP Server
+// HTTP SERVER
 // =====================================================
 
 const server = http.createServer(app);
 
 // =====================================================
-// Socket.io
+// SOCKET.IO
 // =====================================================
 
 const io = new Server(server, {
   cors: {
-    origin: function (origin, callback) {
-      // Allow requests without origin
-      if (!origin) {
-        return callback(null, true);
-      }
+    origin: "http://localhost:3000",
 
-      if (allowedOrigins.includes(origin)) {
-        return callback(null, true);
-      }
-
-      return callback(
-        new Error(
-          `Socket CORS blocked for origin: ${origin}`
-        )
-      );
-    },
-
-    methods: ["GET", "POST"],
+    methods: [
+      "GET",
+      "POST",
+    ],
 
     credentials: true,
   },
@@ -228,7 +218,6 @@ const io = new Server(server, {
 
 // =====================================================
 // Consultation Socket
-// IMPORTANT: io must exist before this
 // =====================================================
 
 const consultationSocket = require(
@@ -238,9 +227,7 @@ const consultationSocket = require(
 consultationSocket(io);
 
 // =====================================================
-// 404 Handler
-// IMPORTANT:
-// Keep this AFTER all API routes.
+// 404 HANDLER
 // =====================================================
 
 app.use((req, res) => {
@@ -252,7 +239,7 @@ app.use((req, res) => {
 });
 
 // =====================================================
-// Global Error Handler
+// GLOBAL ERROR HANDLER
 // =====================================================
 
 const errorHandler = require(
@@ -262,17 +249,31 @@ const errorHandler = require(
 app.use(errorHandler);
 
 // =====================================================
-// Start Server
+// START SERVER
 // =====================================================
 
-server.listen(PORT, () => {
-  console.log(
-    `Server running on port ${PORT}`
-  );
+server.listen(
+  PORT,
+  "0.0.0.0",
+  () => {
+    console.log(
+      "========================================"
+    );
 
-  console.log(
-    `HTTP API: http://localhost:${PORT}`
-  );
+    console.log(
+      `Backend: http://localhost:${PORT}`
+    );
 
- 
-});
+    console.log(
+      `Health:  http://localhost:${PORT}/health`
+    );
+
+    console.log(
+      "Frontend: http://localhost:3000"
+    );
+
+    console.log(
+      "========================================"
+    );
+  }
+);
