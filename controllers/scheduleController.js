@@ -670,7 +670,93 @@ const deleteLeave = async (
   }
 };
 
+// =====================================================
+// Get Public Available Slots
+// GET /api/schedule/public/:doctorId?date=YYYY-MM-DD
+// =====================================================
 
+const getPublicSlots = async (req, res) => {
+  try {
+    const { doctorId } = req.params;
+    const { date } = req.query; // e.g. 2026-08-26
+
+    if (!date) {
+      return res.status(400).json({
+        success: false,
+        message: "Date is required (YYYY-MM-DD)",
+      });
+    }
+
+    // Convert date → day name (Monday, Tuesday...)
+    const dayName = new Date(date + "T00:00:00").toLocaleDateString("en-US", {
+      weekday: "long",
+    });
+
+    // Find schedule by doctor
+    const schedule = await Schedule.findOne({ doctor: doctorId });
+
+    if (!schedule) {
+      return res.json({
+        success: true,
+        day: dayName,
+        slots: [],
+      });
+    }
+
+    // Find that day
+    const dayData = schedule.weeklySchedule.find(
+      (item) => item.day === dayName
+    );
+
+    // Day not available or no data
+    if (!dayData || !dayData.isAvailable) {
+      return res.json({
+        success: true,
+        day: dayName,
+        slots: [],
+      });
+    }
+
+    // Check if doctor is on leave that day
+    const leave = await DoctorLeave.findOne({
+      doctor: doctorId,
+      fromDate: { $lte: new Date(date) },
+      toDate: { $gte: new Date(date) },
+    });
+
+    if (leave) {
+      return res.json({
+        success: true,
+        day: dayName,
+        slots: [],
+        message: "Doctor is on leave this day",
+      });
+    }
+
+    // Return only available (not booked) slots
+    const slots = dayData.slots
+      .filter((slot) => !slot.isBooked && slot.isActive !== false)
+      .map((slot) => ({
+        startTime: slot.startTime,
+        endTime: slot.endTime,
+        consultationType: slot.consultationType,
+        maxPatients: slot.maxPatients || 1,
+      }));
+
+    return res.json({
+      success: true,
+      day: dayName,
+      slots,
+    });
+  } catch (error) {
+    console.error("Get public slots error:", error);
+
+    return res.status(500).json({
+      success: false,
+      message: error.message,
+    });
+  }
+};
 // =====================================================
 // Export
 // =====================================================
@@ -684,4 +770,5 @@ module.exports = {
   addLeave,
   getLeaves,
   deleteLeave,
+  getPublicSlots,
 };

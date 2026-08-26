@@ -13,6 +13,7 @@ const {
   addLeave,
   getLeaves,
   deleteLeave,
+  getPublicSlots,
 } = require("../controllers/scheduleController");
 
 
@@ -83,5 +84,5 @@ router.delete(
   deleteLeave
 );
 
-
+router.get("/public/:doctorId", getPublicSlots);
 module.exports = router;
