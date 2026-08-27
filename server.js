@@ -25,10 +25,7 @@ const PORT = process.env.PORT || 5000;
 // DNS
 // =====================================================
 
-dns.setServers([
-  "1.1.1.1",
-  "8.8.8.8",
-]);
+dns.setServers(["1.1.1.1", "8.8.8.8"]);
 
 // =====================================================
 // Database
@@ -42,6 +39,7 @@ connectDB();
 
 const allowedOrigins = [
   "http://localhost:3000",
+  "https://dr-frontend-azure.vercel.app",
 ];
 
 const corsOptions = {
@@ -58,26 +56,14 @@ const corsOptions = {
 
     console.log("CORS blocked origin:", origin);
 
-    return callback(
-      new Error(`CORS blocked for origin: ${origin}`)
-    );
+    return callback(new Error(`CORS blocked for origin: ${origin}`));
   },
 
   credentials: true,
 
-  methods: [
-    "GET",
-    "POST",
-    "PUT",
-    "PATCH",
-    "DELETE",
-    "OPTIONS",
-  ],
+  methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
 
-  allowedHeaders: [
-    "Content-Type",
-    "Authorization",
-  ],
+  allowedHeaders: ["Content-Type", "Authorization"],
 };
 
 app.use(cors(corsOptions));
@@ -91,7 +77,7 @@ app.use(express.json());
 app.use(
   express.urlencoded({
     extended: true,
-  })
+  }),
 );
 
 // =====================================================
@@ -118,80 +104,45 @@ app.get("/health", (req, res) => {
 // =====================================================
 
 // Authentication
-app.use(
-  "/api/auth",
-  require("./routes/authRoutes")
-);
+app.use("/api/auth", require("./routes/authRoutes"));
 
 // Doctors
-app.use(
-  "/api/doctors",
-  require("./routes/doctorRoutes")
-);
+app.use("/api/doctors", require("./routes/doctorRoutes"));
 
 // Patients
-app.use(
-  "/api/patients",
-  require("./routes/patientRoutes")
-);
+app.use("/api/patients", require("./routes/patientRoutes"));
 
 // Notifications
-app.use(
-  "/api/notifications",
-  require("./routes/notificationRoutes")
-);
+app.use("/api/notifications", require("./routes/notificationRoutes"));
 
 // Reminder Job
 require("./jobs/reminderJob");
 
 // Appointments
-app.use(
-  "/api/appointments",
-  require("./routes/appointmentRoutes")
-);
+app.use("/api/appointments", require("./routes/appointmentRoutes"));
 
 // Schedule
-app.use(
-  "/api/schedule",
-  require("./routes/scheduleRoutes")
-);
+app.use("/api/schedule", require("./routes/scheduleRoutes"));
 
 // Leaves
-app.use(
-  "/api/leaves",
-  require("./routes/leaveRoutes")
-);
+app.use("/api/leaves", require("./routes/leaveRoutes"));
 
 // Profile
-app.use(
-  "/api/profile",
-  require("./routes/profileRoutes")
-);
+app.use("/api/profile", require("./routes/profileRoutes"));
 
 // Consultation
-app.use(
-  "/api/consult",
-  require("./routes/consult")
-);
+app.use("/api/consult", require("./routes/consult"));
 
 // Upload
 const uploadRoutes = require("./routes/uploadRoutes");
 
-app.use(
-  "/api/upload",
-  uploadRoutes
-);
+app.use("/api/upload", uploadRoutes);
 
 // =====================================================
 // Static Uploads
 // =====================================================
 
-app.use(
-  "/uploads",
-  express.static(
-    path.join(__dirname, "uploads")
-  )
-);
+app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 
 // =====================================================
 // HTTP SERVER
@@ -207,10 +158,7 @@ const io = new Server(server, {
   cors: {
     origin: "http://localhost:3000",
 
-    methods: [
-      "GET",
-      "POST",
-    ],
+    methods: ["GET", "POST"],
 
     credentials: true,
   },
@@ -220,9 +168,7 @@ const io = new Server(server, {
 // Consultation Socket
 // =====================================================
 
-const consultationSocket = require(
-  "./socket/consultationSocket"
-);
+const consultationSocket = require("./socket/consultationSocket");
 
 consultationSocket(io);
 
@@ -242,9 +188,7 @@ app.use((req, res) => {
 // GLOBAL ERROR HANDLER
 // =====================================================
 
-const errorHandler = require(
-  "./middleware/errorHandler"
-);
+const errorHandler = require("./middleware/errorHandler");
 
 app.use(errorHandler);
 
@@ -252,28 +196,14 @@ app.use(errorHandler);
 // START SERVER
 // =====================================================
 
-server.listen(
-  PORT,
-  "0.0.0.0",
-  () => {
-    console.log(
-      "========================================"
-    );
+server.listen(PORT, "0.0.0.0", () => {
+  console.log("========================================");
 
-    console.log(
-      `Backend: http://localhost:${PORT}`
-    );
+  console.log(`Backend: http://localhost:${PORT}`);
 
-    console.log(
-      `Health:  http://localhost:${PORT}/health`
-    );
+  console.log(`Health:  http://localhost:${PORT}/health`);
 
-    console.log(
-      "Frontend: http://localhost:3000"
-    );
+  console.log("Frontend: http://localhost:3000");
 
-    console.log(
-      "========================================"
-    );
-  }
-);
+  console.log("========================================");
+});

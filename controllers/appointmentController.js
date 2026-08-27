@@ -1,4 +1,3 @@
-
 const Appointment = require("../models/Appointment");
 const Doctor = require("../models/Doctor");
 const User = require("../models/User");
@@ -36,9 +35,7 @@ const createAppointmentNotification = async ({
 }) => {
   try {
     if (!user || !title || !message) {
-      console.warn(
-        "Notification skipped: missing user/title/message"
-      );
+      console.warn("Notification skipped: missing user/title/message");
       return null;
     }
 
@@ -47,97 +44,229 @@ const createAppointmentNotification = async ({
       appointment: appointment?._id || appointment || null,
       title,
       message,
-      type,
+      type: [
+        "appointment-reminder",
+        "appointment-30-minutes",
+        "general",
+      ].includes(type)
+        ? type
+        : "general",
       isRead: false,
     });
 
-    console.log(
-      "Notification created:",
-      notification._id.toString()
-    );
+    console.log("Notification created:", notification._id.toString());
 
     return notification;
   } catch (error) {
     // Notification failure must never break appointment action.
-    console.error(
-      "Create appointment notification error:",
-      error.message
-    );
+    console.error("Create appointment notification error:", error.message);
     return null;
   }
 };
 
-const sendAppointmentEmail = async ({
-  to,
-  subject,
-  message,
-}) => {
+const escapeHtml = (value = "") => {
+  return String(value)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+};
+
+const formatAppointmentDate = (date) => {
+  if (!date) return "";
+
+  return new Date(date).toLocaleDateString("en-IN", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+  });
+};
+
+const formatEmailMessage = (message = "") => {
+  return escapeHtml(message)
+    .split(/\n\n+/)
+    .map((paragraph) => {
+      const formatted = paragraph
+        .replace(
+          /^(Doctor|Date|Time|Consultation|Reason):/gm,
+          "<strong>$1:</strong>",
+        )
+        .replace(/\n/g, "<br />");
+
+      return `
+        <p style="
+          margin: 0 0 14px 0;
+          color: #374151;
+          font-size: 15px;
+          line-height: 1.7;
+        ">
+          ${formatted}
+        </p>
+      `;
+    })
+    .join("");
+};
+
+const sendAppointmentEmail = async ({ to, subject, message }) => {
   try {
     if (!to) {
-      console.warn(
-        "Email skipped: recipient email is missing."
-      );
+      console.warn("Email skipped: recipient email is missing.");
       return null;
     }
 
     if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) {
-      console.warn(
-        "Email skipped: EMAIL_USER or EMAIL_PASS is missing."
-      );
+      console.warn("Email skipped: EMAIL_USER or EMAIL_PASS is missing.");
       return null;
     }
+
+    const safeSubject = escapeHtml(subject);
+    const htmlMessage = formatEmailMessage(message);
+
+    const html = `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8" />
+  <meta
+    name="viewport"
+    content="width=device-width, initial-scale=1.0"
+  />
+  <title>${safeSubject}</title>
+</head>
+
+<body style="
+  margin: 0;
+  padding: 0;
+  background-color: #f3f4f6;
+  font-family: Arial, Helvetica, sans-serif;
+">
+  <table
+    width="100%"
+    cellpadding="0"
+    cellspacing="0"
+    border="0"
+    style="
+      background-color: #f3f4f6;
+      padding: 30px 15px;
+    "
+  >
+    <tr>
+      <td align="center">
+
+        <table
+          width="100%"
+          cellpadding="0"
+          cellspacing="0"
+          border="0"
+          style="
+            max-width: 600px;
+            background-color: #ffffff;
+            border: 1px solid #e5e7eb;
+            border-radius: 12px;
+            overflow: hidden;
+          "
+        >
+
+          <tr>
+            <td style="
+              background-color: #2563eb;
+              padding: 28px 30px;
+              text-align: center;
+            ">
+              <h1 style="
+                margin: 0;
+                color: #ffffff;
+                font-size: 24px;
+                line-height: 1.3;
+                font-weight: 700;
+              ">
+                Dr. Sharma Healthcare
+              </h1>
+
+              <p style="
+                margin: 8px 0 0;
+                color: #dbeafe;
+                font-size: 14px;
+                line-height: 1.5;
+              ">
+                Healthcare &amp; Appointment Services
+              </p>
+            </td>
+          </tr>
+
+          <tr>
+            <td style="padding: 32px 30px;">
+
+              <h2 style="
+                margin: 0 0 24px;
+                color: #111827;
+                font-size: 22px;
+                line-height: 1.35;
+                font-weight: 700;
+              ">
+                ${safeSubject}
+              </h2>
+
+              ${htmlMessage}
+
+            </td>
+          </tr>
+
+          <tr>
+            <td style="
+              padding: 20px 30px;
+              background-color: #f9fafb;
+              border-top: 1px solid #e5e7eb;
+              text-align: center;
+            ">
+              <p style="
+                margin: 0;
+                color: #6b7280;
+                font-size: 13px;
+                line-height: 1.6;
+              ">
+                This is an automated email from Dr. Sharma Healthcare.
+              </p>
+
+              <p style="
+                margin: 6px 0 0;
+                color: #9ca3af;
+                font-size: 12px;
+                line-height: 1.5;
+              ">
+                Please do not reply directly to this email.
+              </p>
+            </td>
+          </tr>
+
+        </table>
+
+      </td>
+    </tr>
+  </table>
+</body>
+</html>
+`;
 
     const result = await emailTransporter.sendMail({
       from: `"Dr. Sharma Healthcare" <${process.env.EMAIL_USER}>`,
       to,
       subject,
       text: message,
-      html: `
-        <div style="font-family: Arial, sans-serif; line-height: 1.6;">
-          <h2>${subject}</h2>
-          <p>${message}</p>
-        </div>
-      `,
+      html,
     });
 
-    console.log(
-      "Email sent successfully:",
-      result.messageId
-    );
+    console.log("Email sent successfully:", result.messageId);
 
     return result;
   } catch (error) {
-    // Email failure must never break appointment action.
-    console.error(
-      "Appointment email failed:",
-      error.message
-    );
+    console.error("Appointment email failed:", error.message);
+
     return null;
   }
 };
 
-const sendAppointmentSMS = async ({
-  to,
-  message,
-}) => {
-  try {
-    if (!to) {
-      console.warn(
-        "SMS skipped: recipient phone is missing."
-      );
-      return null;
-    }
-
-    return await sendSMS(to, message);
-  } catch (error) {
-    // SMS failure must never break appointment action.
-    console.error(
-      "Appointment SMS failed:",
-      error.message
-    );
-    return null;
-  }
-};
 // =====================================================
 // BOOK APPOINTMENT
 // Patient sends appointment request
@@ -239,21 +368,16 @@ const bookAppointment = async (req, res) => {
     // Patient booked an appointment
     // =================================================
 
-    const patientUser = await User.findById(patientId).select(
-      "name email phone"
-    );
+    const patientUser =
+      await User.findById(patientId).select("name email phone");
 
     const doctorUser = doctorProfile.user
-      ? await User.findById(doctorProfile.user).select(
-          "name email phone"
-        )
+      ? await User.findById(doctorProfile.user).select("name email phone")
       : null;
 
-    const bookingDate =
-      selectedDate.toLocaleDateString();
+    const bookingDate = formatAppointmentDate(selectedDate);
 
-    const bookingType =
-      consultationType || "video";
+    const bookingType = consultationType || "video";
 
     await createAppointmentNotification({
       user: patientId,
@@ -318,7 +442,7 @@ const bookAppointment = async (req, res) => {
     const populatedAppointment = await Appointment.findById(appointment._id)
       .populate(
         "doctor",
-        "name specialization qualification experience hospital image consultationFee"
+        "name specialization qualification experience hospital image consultationFee",
       )
       .populate("patient", "name email phone");
 
@@ -484,7 +608,55 @@ const doctorAppointments = async (req, res) => {
     });
   }
 };
+// =====================================================
+// SEND APPOINTMENT SMS
+// =====================================================
 
+const sendAppointmentSMS = async ({ to, message }) => {
+  try {
+    if (!to) {
+      console.warn("SMS skipped: recipient phone is missing.");
+
+      return {
+        success: false,
+        skipped: true,
+        message: "Recipient phone is missing",
+      };
+    }
+
+    if (typeof sendSMS !== "function") {
+      console.warn("SMS skipped: sendSMS function is unavailable.");
+
+      return {
+        success: false,
+        skipped: true,
+        message: "sendSMS function is unavailable",
+      };
+    }
+
+    const result = await sendSMS(to, message);
+
+    if (result?.success) {
+      console.log("Appointment SMS sent successfully:", result.sid || "");
+    } else {
+      console.warn(
+        "Appointment SMS was not sent:",
+        result?.message || result?.error || "Unknown SMS error",
+      );
+    }
+
+    return result;
+  } catch (error) {
+    console.error("Appointment SMS failed:", error.message);
+
+    // IMPORTANT:
+    // SMS failure must NOT make appointment API fail.
+    return {
+      success: false,
+      error: error.message,
+    };
+  }
+};
 // =====================================================
 // DOCTOR ACCEPT APPOINTMENT
 // Pending → Confirmed
@@ -569,9 +741,7 @@ const acceptAppointment = async (req, res) => {
       message:
         `Hello ${acceptedPatient.name || "Patient"},\n\n` +
         `${acceptedDoctor?.name || "Your doctor"} has accepted your appointment.\n\n` +
-        `Date: ${new Date(
-          appointment.appointmentDate
-        ).toLocaleDateString()}\n` +
+        `Date: ${formatAppointmentDate(appointment.appointmentDate)}\n` +
         `Time: ${appointment.appointmentTime}\n` +
         `Consultation: ${appointment.consultationType}\n\n` +
         "Your appointment is now confirmed.",
@@ -581,9 +751,7 @@ const acceptAppointment = async (req, res) => {
       to: acceptedPatient.phone,
       message:
         `Dr. Sharma: ${acceptedDoctor?.name || "Your doctor"} accepted your appointment ` +
-        `for ${new Date(
-          appointment.appointmentDate
-        ).toLocaleDateString()} at ${appointment.appointmentTime}.`,
+        `for ${formatAppointmentDate(appointment.appointmentDate)} at ${appointment.appointmentTime}.`,
     });
 
     res.status(200).json({
@@ -657,22 +825,20 @@ const rejectAppointment = async (req, res) => {
     // Doctor rejected/cancelled appointment
     // =================================================
 
-    const rejectedPatient = await User.findById(
-      appointment.patient
-    ).select("name email phone");
+    const rejectedPatient = await User.findById(appointment.patient).select(
+      "name email phone",
+    );
 
     const rejectionReason =
-      appointment.cancellationReason ||
-      "Appointment cancelled by doctor";
+      appointment.cancellationReason || "Appointment cancelled by doctor";
 
     await createAppointmentNotification({
       user: appointment.patient,
       appointment,
       title: "Appointment Cancelled",
-      message:
-        `Your appointment with Dr. ${
-          doctor.name || "Doctor"
-        } has been cancelled. Reason: ${rejectionReason}`,
+      message: `Your appointment with Dr. ${
+        doctor.name || "Doctor"
+      } has been cancelled. Reason: ${rejectionReason}`,
       type: "appointment-cancelled",
     });
 
@@ -689,10 +855,9 @@ const rejectAppointment = async (req, res) => {
 
     await sendAppointmentSMS({
       to: rejectedPatient?.phone,
-      message:
-        `Dr. Sharma: Your appointment with Dr. ${
-          doctor.name || "Doctor"
-        } has been cancelled. Reason: ${rejectionReason}`,
+      message: `Dr. Sharma: Your appointment with Dr. ${
+        doctor.name || "Doctor"
+      } has been cancelled. Reason: ${rejectionReason}`,
     });
 
     res.status(200).json({
@@ -922,25 +1087,20 @@ const cancelAppointment = async (req, res) => {
     // Patient cancelled appointment
     // =================================================
 
-    const cancelledDoctor = await Doctor.findById(
-      appointment.doctor
-    ).select("user name");
+    const cancelledDoctor = await Doctor.findById(appointment.doctor).select(
+      "user name",
+    );
 
-    const cancelledDoctorUser =
-      cancelledDoctor?.user
-        ? await User.findById(
-            cancelledDoctor.user
-          ).select("name email phone")
-        : null;
+    const cancelledDoctorUser = cancelledDoctor?.user
+      ? await User.findById(cancelledDoctor.user).select("name email phone")
+      : null;
 
-    const cancellingPatient =
-      await User.findById(
-        appointment.patient
-      ).select("name email phone");
+    const cancellingPatient = await User.findById(appointment.patient).select(
+      "name email phone",
+    );
 
     const patientCancellationReason =
-      appointment.cancellationReason ||
-      "Cancelled by patient";
+      appointment.cancellationReason || "Cancelled by patient";
 
     if (cancelledDoctor?.user) {
       await createAppointmentNotification({
@@ -958,9 +1118,7 @@ const cancelAppointment = async (req, res) => {
       to: cancelledDoctorUser?.email,
       subject: "Appointment Cancelled by Patient",
       message:
-        `Hello ${
-          cancelledDoctorUser?.name || "Doctor"
-        },\n\n` +
+        `Hello ${cancelledDoctorUser?.name || "Doctor"},\n\n` +
         `${
           cancellingPatient?.name || "Patient"
         } has cancelled the appointment.\n\n` +
@@ -969,12 +1127,9 @@ const cancelAppointment = async (req, res) => {
 
     await sendAppointmentSMS({
       to: cancelledDoctorUser?.phone,
-      message:
-        `Dr. Sharma: ${
-          cancellingPatient?.name || "Patient"
-        } cancelled the appointment. Reason: ${
-          patientCancellationReason
-        }`,
+      message: `Dr. Sharma: ${
+        cancellingPatient?.name || "Patient"
+      } cancelled the appointment. Reason: ${patientCancellationReason}`,
     });
 
     res.status(200).json({
@@ -1110,7 +1265,6 @@ const adminDashboard = async (req, res) => {
     });
   }
 };
-
 
 module.exports = {
   bookAppointment,

@@ -194,47 +194,37 @@ const markAllNotificationsAsRead = async (
 // =====================================================
 // DELETE ONE NOTIFICATION
 // =====================================================
-
-const deleteNotification = async (
-  req,
-  res
-) => {
+const deleteNotification = async (req, res) => {
   try {
     const userId = req.user.id;
 
-    const notification =
-      await Notification.findOneAndDelete({
-        _id: req.params.id,
-        user: userId,
-      });
+    const notification = await Notification.findOneAndDelete({
+      _id: req.params.id,
+      user: userId,
+    });
 
     if (!notification) {
       return res.status(404).json({
         success: false,
-        message:
-          "Notification not found",
+        message: "Notification not found",
       });
     }
 
     return res.status(200).json({
       success: true,
-      message:
-        "Notification deleted successfully",
+      message: "Notification deleted successfully",
     });
   } catch (error) {
-    console.error(
-      "Delete notification error:",
-      error
-    );
+    console.error("Delete notification error:", error);
 
     return res.status(500).json({
       success: false,
-      message:
-        "Failed to delete notification",
+      message: "Failed to delete notification",
       error: error.message,
     });
   }
 };
+
 
 // =====================================================
 // EXPORTS
