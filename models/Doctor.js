@@ -7,7 +7,7 @@ const mongoose = require("mongoose");
 const doctorSchema = new mongoose.Schema(
   {
     // =====================================================
-    // Linked User Account
+    // Linked User Account  
     // =====================================================
 
     user: {
