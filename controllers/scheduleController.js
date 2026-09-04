@@ -102,7 +102,7 @@ const updateDoctorSchedule = async (req, res) => {
         upsert: true,
         runValidators: true,
         setDefaultsOnInsert: true,
-      }
+      },
     );
 
     return res.json({
@@ -304,7 +304,11 @@ const deleteTimeSlot = async (req, res) => {
 
     const index = Number(slotIndex);
 
-    if (!Number.isInteger(index) || index < 0 || index >= dayData.slots.length) {
+    if (
+      !Number.isInteger(index) ||
+      index < 0 ||
+      index >= dayData.slots.length
+    ) {
       return res.status(400).json({
         success: false,
         message: "Invalid slot index",
@@ -363,7 +367,7 @@ const toggleDayAvailability = async (req, res) => {
     }
 
     const dayData = schedule.weeklySchedule.find(
-      (item) => item.day === req.params.day
+      (item) => item.day === req.params.day,
     );
 
     if (!dayData) {
@@ -529,8 +533,148 @@ const deleteLeave = async (req, res) => {
   }
 };
 
+
+// const getPublicSlots = async (req, res) => {
+//   try {
+//     const { doctorId } = req.params;
+//     const { date } = req.query; // YYYY-MM-DD
+
+//     if (!date) {
+//       return res.status(400).json({
+//         success: false,
+//         message: "Date is required (YYYY-MM-DD)",
+//       });
+//     }
+
+//     // Safe day name (local timezone)
+//     const getDayName = (dateStr) => {
+//       const [y, m, d] = dateStr.split("-").map(Number);
+//       const localDate = new Date(y, m - 1, d);
+//       return localDate.toLocaleDateString("en-US", { weekday: "long" });
+//     };
+
+//     const dayName = getDayName(date);
+
+//     // Find schedule
+//     const schedule = await Schedule.findOne({ doctor: doctorId });
+
+//     if (!schedule) {
+//       return res.json({
+//         success: true,
+//         day: dayName,
+//         slots: [],
+//         message: "Doctor has not set any schedule yet",
+//       });
+//     }
+
+//     const dayData = schedule.weeklySchedule.find(
+//       (item) => item.day === dayName
+//     );
+
+//     if (!dayData || !dayData.isAvailable) {
+//       return res.json({
+//         success: true,
+//         day: dayName,
+//         slots: [],
+//         message: "Doctor is not available on this day",
+//       });
+//     }
+
+//     // Check Leave
+//     const selectedDate = new Date(date + "T00:00:00");
+
+//     const leave = await DoctorLeave.findOne({
+//       doctor: doctorId,
+//       status: "Active",
+//       isActive: true,
+//       fromDate: { $lte: selectedDate },
+//       toDate: { $gte: selectedDate },
+//     });
+
+//     // Full day / Vacation / Emergency
+//     if (leave && ["Full Day", "Vacation", "Emergency"].includes(leave.leaveType)) {
+//       return res.json({
+//         success: true,
+//         day: dayName,
+//         slots: [],
+//         message: `Doctor is on ${leave.leaveType.toLowerCase()}`,
+//       });
+//     }
+
+//     // Weekly Off
+//     if (leave && leave.leaveType === "Weekly Off" && leave.weekDay === dayName) {
+//       return res.json({
+//         success: true,
+//         day: dayName,
+//         slots: [],
+//         message: "Doctor is on weekly off",
+//       });
+//     }
+
+//     // Base slots
+//     let slots = dayData.slots
+//       .filter((slot) => slot.isActive !== false)
+//       .map((slot) => ({
+//         startTime: slot.startTime,
+//         endTime: slot.endTime,
+//         consultationType: slot.consultationType,
+//         maxPatients: slot.maxPatients || 1,
+//       }));
+
+//     // Half Day leave filter
+//     if (leave && leave.leaveType === "Half Day" && leave.fromTime && leave.toTime) {
+//       const leaveStart = leave.fromTime;
+//       const leaveEnd = leave.toTime;
+
+//       slots = slots.filter((slot) => {
+//         const overlaps = slot.startTime < leaveEnd && slot.endTime > leaveStart;
+//         return !overlaps;
+//       });
+//     }
+
+//     // Remove already booked appointments for this exact date
+//     const bookedAppointments = await Appointment.find({
+//       doctor: doctorId,
+//       appointmentDate: date,
+//       status: { $nin: ["cancelled", "rejected"] },
+//     }).select("appointmentTime consultationType");
+
+//     if (bookedAppointments.length > 0) {
+//       slots = slots.filter((slot) => {
+//         const timeLabel = `${slot.startTime} - ${slot.endTime}`;
+
+//         const isBooked = bookedAppointments.some(
+//           (app) =>
+//             app.appointmentTime === timeLabel &&
+//             app.consultationType === slot.consultationType
+//         );
+
+//         return !isBooked;
+//       });
+//     }
+
+//     return res.json({
+//       success: true,
+//       day: dayName,
+//       slots,
+//       message: slots.length === 0 ? "No slots available for this date" : undefined,
+//     });
+//   } catch (error) {
+//     console.error("Get public slots error:", error);
+//     return res.status(500).json({
+//       success: false,
+//       message: error.message,
+//     });
+//   }
+// };
+
 // =====================================================
-// Get Public Available Slots  (IMPROVED)
+// Get Public Available Slots
+// GET /api/schedule/public/:doctorId?date=YYYY-MM-DD
+// =====================================================
+
+// =====================================================
+// Get Public Available Slots
 // GET /api/schedule/public/:doctorId?date=YYYY-MM-DD
 // =====================================================
 
@@ -546,7 +690,7 @@ const getPublicSlots = async (req, res) => {
       });
     }
 
-    // Safe day name (local timezone)
+    // ---------- Safe day name ----------
     const getDayName = (dateStr) => {
       const [y, m, d] = dateStr.split("-").map(Number);
       const localDate = new Date(y, m - 1, d);
@@ -555,7 +699,6 @@ const getPublicSlots = async (req, res) => {
 
     const dayName = getDayName(date);
 
-    // Find schedule
     const schedule = await Schedule.findOne({ doctor: doctorId });
 
     if (!schedule) {
@@ -580,7 +723,7 @@ const getPublicSlots = async (req, res) => {
       });
     }
 
-    // Check Leave
+    // ---------- Leave check ----------
     const selectedDate = new Date(date + "T00:00:00");
 
     const leave = await DoctorLeave.findOne({
@@ -591,8 +734,10 @@ const getPublicSlots = async (req, res) => {
       toDate: { $gte: selectedDate },
     });
 
-    // Full day / Vacation / Emergency
-    if (leave && ["Full Day", "Vacation", "Emergency"].includes(leave.leaveType)) {
+    if (
+      leave &&
+      ["Full Day", "Vacation", "Emergency"].includes(leave.leaveType)
+    ) {
       return res.json({
         success: true,
         day: dayName,
@@ -601,8 +746,11 @@ const getPublicSlots = async (req, res) => {
       });
     }
 
-    // Weekly Off
-    if (leave && leave.leaveType === "Weekly Off" && leave.weekDay === dayName) {
+    if (
+      leave &&
+      leave.leaveType === "Weekly Off" &&
+      leave.weekDay === dayName
+    ) {
       return res.json({
         success: true,
         day: dayName,
@@ -611,7 +759,7 @@ const getPublicSlots = async (req, res) => {
       });
     }
 
-    // Base slots
+    // ---------- Base slots ----------
     let slots = dayData.slots
       .filter((slot) => slot.isActive !== false)
       .map((slot) => ({
@@ -619,45 +767,68 @@ const getPublicSlots = async (req, res) => {
         endTime: slot.endTime,
         consultationType: slot.consultationType,
         maxPatients: slot.maxPatients || 1,
+        isAvailable: true,
       }));
 
-    // Half Day leave filter
-    if (leave && leave.leaveType === "Half Day" && leave.fromTime && leave.toTime) {
+    // ---------- Half Day leave ----------
+    if (
+      leave &&
+      leave.leaveType === "Half Day" &&
+      leave.fromTime &&
+      leave.toTime
+    ) {
       const leaveStart = leave.fromTime;
       const leaveEnd = leave.toTime;
 
-      slots = slots.filter((slot) => {
-        const overlaps = slot.startTime < leaveEnd && slot.endTime > leaveStart;
-        return !overlaps;
+      slots = slots.map((slot) => {
+        const overlaps =
+          slot.startTime < leaveEnd && slot.endTime > leaveStart;
+
+        return {
+          ...slot,
+          isAvailable: overlaps ? false : slot.isAvailable,
+        };
       });
     }
 
-    // Remove already booked appointments for this exact date
+    // ---------- Booked appointments (IMPORTANT FIX) ----------
+    // Fetch all active appointments for this doctor, then compare date in JS
+    // This avoids timezone problems
     const bookedAppointments = await Appointment.find({
       doctor: doctorId,
-      appointmentDate: date,
-      status: { $nin: ["cancelled", "rejected"] },
-    }).select("appointmentTime consultationType");
+      status: { $in: ["Pending", "Confirmed", "In Progress"] },
+    }).select("appointmentDate appointmentTime consultationType");
 
-    if (bookedAppointments.length > 0) {
-      slots = slots.filter((slot) => {
-        const timeLabel = `${slot.startTime} - ${slot.endTime}`;
+    slots = slots.map((slot) => {
+      const timeLabel = `${slot.startTime} - ${slot.endTime}`;
 
-        const isBooked = bookedAppointments.some(
-          (app) =>
-            app.appointmentTime === timeLabel &&
-            app.consultationType === slot.consultationType
+      const isBooked = bookedAppointments.some((app) => {
+        // Convert stored date → YYYY-MM-DD
+        const appDate = new Date(app.appointmentDate);
+        const appDateStr = `${appDate.getFullYear()}-${String(
+          appDate.getMonth() + 1
+        ).padStart(2, "0")}-${String(appDate.getDate()).padStart(2, "0")}`;
+
+        return (
+          appDateStr === date &&
+          app.appointmentTime === timeLabel &&
+          app.consultationType === slot.consultationType
         );
-
-        return !isBooked;
       });
-    }
+
+      return {
+        ...slot,
+        isAvailable: isBooked ? false : slot.isAvailable,
+      };
+    });
 
     return res.json({
       success: true,
       day: dayName,
       slots,
-      message: slots.length === 0 ? "No slots available for this date" : undefined,
+      message: slots.every((s) => !s.isAvailable)
+        ? "No slots available for this date"
+        : undefined,
     });
   } catch (error) {
     console.error("Get public slots error:", error);
@@ -667,7 +838,6 @@ const getPublicSlots = async (req, res) => {
     });
   }
 };
-
 // =====================================================
 // Export
 // =====================================================

@@ -55,6 +55,21 @@ const appointmentSchema = new mongoose.Schema(
     },
 
     // ==========================================
+    // Patient Symptoms
+    // ==========================================
+
+    symptoms: {
+      type: [String],
+      default: [],
+    },
+
+    otherSymptoms: {
+      type: String,
+      default: "",
+      trim: true,
+    },
+
+    // ==========================================
     // Video / Audio Room
     // ==========================================
 
@@ -126,7 +141,6 @@ const appointmentSchema = new mongoose.Schema(
   }
 );
 
-
 // ==========================================
 // Indexes
 // ==========================================
@@ -144,6 +158,9 @@ appointmentSchema.index({
   appointmentDate: -1,
 });
 
+// ==========================================
+// Model
+// ==========================================
 
 module.exports = mongoose.model(
   "Appointment",
