@@ -310,9 +310,6 @@ const bookAppointment = async (req, res) => {
       });
     }
 
-    // -----------------------------------------------
-    // IMPORTANT: Check if doctor is on leave
-    // -----------------------------------------------
     const selectedDate = new Date(appointmentDate);
     selectedDate.setHours(0, 0, 0, 0);
 
@@ -325,11 +322,37 @@ const bookAppointment = async (req, res) => {
     });
 
     if (leave) {
-      // Optional: handle Half Day leave more precisely later
-      return res.status(400).json({
-        success: false,
-        message: `Doctor is on leave (${leave.leaveType}) on this date`,
-      });
+      if (["Full Day", "Vacation", "Emergency"].includes(leave.leaveType)) {
+        return res.status(400).json({
+          success: false,
+          message: `Doctor is on leave (${leave.leaveType}) on this date`,
+        });
+      }
+
+      if (leave.leaveType === "Weekly Off") {
+        return res.status(400).json({
+          success: false,
+          message: "Doctor is on weekly off",
+        });
+      }
+
+      // Half Day → only block overlapping time
+      if (leave.leaveType === "Half Day" && leave.fromTime && leave.toTime) {
+        const [slotStart, slotEnd] = (appointmentTime || "")
+          .split(" - ")
+          .map((t) => t.trim());
+
+        if (slotStart && slotEnd) {
+          const overlaps = slotStart < leave.toTime && slotEnd > leave.fromTime;
+
+          if (overlaps) {
+            return res.status(400).json({
+              success: false,
+              message: `Doctor is on half-day leave (${leave.fromTime} - ${leave.toTime}). Please choose another time.`,
+            });
+          }
+        }
+      }
     }
 
     // -----------------------------------------------

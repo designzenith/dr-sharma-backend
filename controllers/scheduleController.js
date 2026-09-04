@@ -677,7 +677,6 @@ const deleteLeave = async (req, res) => {
 // Get Public Available Slots
 // GET /api/schedule/public/:doctorId?date=YYYY-MM-DD
 // =====================================================
-
 const getPublicSlots = async (req, res) => {
   try {
     const { doctorId } = req.params;
@@ -734,6 +733,7 @@ const getPublicSlots = async (req, res) => {
       toDate: { $gte: selectedDate },
     });
 
+    // Full Day / Vacation / Emergency → no slots
     if (
       leave &&
       ["Full Day", "Vacation", "Emergency"].includes(leave.leaveType)
@@ -746,6 +746,7 @@ const getPublicSlots = async (req, res) => {
       });
     }
 
+    // Weekly Off
     if (
       leave &&
       leave.leaveType === "Weekly Off" &&
@@ -770,7 +771,7 @@ const getPublicSlots = async (req, res) => {
         isAvailable: true,
       }));
 
-    // ---------- Half Day leave ----------
+    // ---------- Half Day leave → mark overlapping slots unavailable ----------
     if (
       leave &&
       leave.leaveType === "Half Day" &&
@@ -791,9 +792,7 @@ const getPublicSlots = async (req, res) => {
       });
     }
 
-    // ---------- Booked appointments (IMPORTANT FIX) ----------
-    // Fetch all active appointments for this doctor, then compare date in JS
-    // This avoids timezone problems
+    // ---------- Booked appointments ----------
     const bookedAppointments = await Appointment.find({
       doctor: doctorId,
       status: { $in: ["Pending", "Confirmed", "In Progress"] },
@@ -803,7 +802,6 @@ const getPublicSlots = async (req, res) => {
       const timeLabel = `${slot.startTime} - ${slot.endTime}`;
 
       const isBooked = bookedAppointments.some((app) => {
-        // Convert stored date → YYYY-MM-DD
         const appDate = new Date(app.appointmentDate);
         const appDateStr = `${appDate.getFullYear()}-${String(
           appDate.getMonth() + 1
