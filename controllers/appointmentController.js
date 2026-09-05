@@ -366,7 +366,7 @@ const bookAppointment = async (req, res) => {
         $in: ["Pending", "Confirmed", "In Progress"],
       },
     });
-
+ 
     if (existingAppointment) {
       return res.status(400).json({
         success: false,
