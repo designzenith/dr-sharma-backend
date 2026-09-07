@@ -6,14 +6,11 @@ const DoctorLeave = require("../models/DoctorLeave");
 const Notification = require("../models/Notification");
 const { sendSMS } = require("../utils/notify");
 const nodemailer = require("nodemailer");
-
-// or if you already exported the helper:
-// const { checkDoctorLeave } = require("./leaveController"); // adjust path if needed
+const crypto = require("crypto");
 
 // =====================================================
 // EMAIL CONFIGURATION
 // =====================================================
-
 const emailTransporter = nodemailer.createTransport({
   service: "gmail",
   auth: {
@@ -55,10 +52,8 @@ const createAppointmentNotification = async ({
     });
 
     console.log("Notification created:", notification._id.toString());
-
     return notification;
   } catch (error) {
-    // Notification failure must never break appointment action.
     console.error("Create appointment notification error:", error.message);
     return null;
   }
@@ -75,7 +70,6 @@ const escapeHtml = (value = "") => {
 
 const formatAppointmentDate = (date) => {
   if (!date) return "";
-
   return new Date(date).toLocaleDateString("en-IN", {
     day: "2-digit",
     month: "2-digit",
@@ -90,7 +84,7 @@ const formatEmailMessage = (message = "") => {
       const formatted = paragraph
         .replace(
           /^(Doctor|Date|Time|Consultation|Reason):/gm,
-          "<strong>$1:</strong>",
+          "<strong>$1:</strong>"
         )
         .replace(/\n/g, "<br />");
 
@@ -128,120 +122,43 @@ const sendAppointmentEmail = async ({ to, subject, message }) => {
 <html>
 <head>
   <meta charset="UTF-8" />
-  <meta
-    name="viewport"
-    content="width=device-width, initial-scale=1.0"
-  />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>${safeSubject}</title>
 </head>
-
-<body style="
-  margin: 0;
-  padding: 0;
-  background-color: #f3f4f6;
-  font-family: Arial, Helvetica, sans-serif;
-">
-  <table
-    width="100%"
-    cellpadding="0"
-    cellspacing="0"
-    border="0"
-    style="
-      background-color: #f3f4f6;
-      padding: 30px 15px;
-    "
-  >
+<body style="margin: 0; padding: 0; background-color: #f3f4f6; font-family: Arial, Helvetica, sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color: #f3f4f6; padding: 30px 15px;">
     <tr>
       <td align="center">
-
-        <table
-          width="100%"
-          cellpadding="0"
-          cellspacing="0"
-          border="0"
-          style="
-            max-width: 600px;
-            background-color: #ffffff;
-            border: 1px solid #e5e7eb;
-            border-radius: 12px;
-            overflow: hidden;
-          "
-        >
-
+        <table width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width: 600px; background-color: #ffffff; border: 1px solid #e5e7eb; border-radius: 12px; overflow: hidden;">
           <tr>
-            <td style="
-              background-color: #2563eb;
-              padding: 28px 30px;
-              text-align: center;
-            ">
-              <h1 style="
-                margin: 0;
-                color: #ffffff;
-                font-size: 24px;
-                line-height: 1.3;
-                font-weight: 700;
-              ">
+            <td style="background-color: #2563eb; padding: 28px 30px; text-align: center;">
+              <h1 style="margin: 0; color: #ffffff; font-size: 24px; line-height: 1.3; font-weight: 700;">
                 Dr. Sharma Healthcare
               </h1>
-
-              <p style="
-                margin: 8px 0 0;
-                color: #dbeafe;
-                font-size: 14px;
-                line-height: 1.5;
-              ">
+              <p style="margin: 8px 0 0; color: #dbeafe; font-size: 14px; line-height: 1.5;">
                 Healthcare &amp; Appointment Services
               </p>
             </td>
           </tr>
-
           <tr>
             <td style="padding: 32px 30px;">
-
-              <h2 style="
-                margin: 0 0 24px;
-                color: #111827;
-                font-size: 22px;
-                line-height: 1.35;
-                font-weight: 700;
-              ">
+              <h2 style="margin: 0 0 24px; color: #111827; font-size: 22px; line-height: 1.35; font-weight: 700;">
                 ${safeSubject}
               </h2>
-
               ${htmlMessage}
-
             </td>
           </tr>
-
           <tr>
-            <td style="
-              padding: 20px 30px;
-              background-color: #f9fafb;
-              border-top: 1px solid #e5e7eb;
-              text-align: center;
-            ">
-              <p style="
-                margin: 0;
-                color: #6b7280;
-                font-size: 13px;
-                line-height: 1.6;
-              ">
+            <td style="padding: 20px 30px; background-color: #f9fafb; border-top: 1px solid #e5e7eb; text-align: center;">
+              <p style="margin: 0; color: #6b7280; font-size: 13px; line-height: 1.6;">
                 This is an automated email from Dr. Sharma Healthcare.
               </p>
-
-              <p style="
-                margin: 6px 0 0;
-                color: #9ca3af;
-                font-size: 12px;
-                line-height: 1.5;
-              ">
+              <p style="margin: 6px 0 0; color: #9ca3af; font-size: 12px; line-height: 1.5;">
                 Please do not reply directly to this email.
               </p>
             </td>
           </tr>
-
         </table>
-
       </td>
     </tr>
   </table>
@@ -258,29 +175,64 @@ const sendAppointmentEmail = async ({ to, subject, message }) => {
     });
 
     console.log("Email sent successfully:", result.messageId);
-
     return result;
   } catch (error) {
     console.error("Appointment email failed:", error.message);
-
     return null;
+  }
+};
+
+const sendAppointmentSMS = async ({ to, message }) => {
+  try {
+    if (!to) {
+      console.warn("SMS skipped: recipient phone is missing.");
+      return {
+        success: false,
+        skipped: true,
+        message: "Recipient phone is missing",
+      };
+    }
+
+    if (typeof sendSMS !== "function") {
+      console.warn("SMS skipped: sendSMS function is unavailable.");
+      return {
+        success: false,
+        skipped: true,
+        message: "sendSMS function is unavailable",
+      };
+    }
+
+    const result = await sendSMS(to, message);
+
+    if (result?.success) {
+      console.log("Appointment SMS sent successfully:", result.sid || "");
+    } else {
+      console.warn(
+        "Appointment SMS was not sent:",
+        result?.message || result?.error || "Unknown SMS error"
+      );
+    }
+
+    return result;
+  } catch (error) {
+    console.error("Appointment SMS failed:", error.message);
+    return {
+      success: false,
+      error: error.message,
+    };
   }
 };
 
 // =====================================================
 // BOOK APPOINTMENT
-// Patient sends appointment request
 // =====================================================
-
 const bookAppointment = async (req, res) => {
   try {
     const patientId = req.user._id;
     const { doctor, appointmentDate, appointmentTime, consultationType } =
       req.body;
 
-    // -----------------------------------------------
     // Validate doctor
-    // -----------------------------------------------
     const doctorProfile = await Doctor.findById(doctor);
 
     if (!doctorProfile) {
@@ -297,11 +249,9 @@ const bookAppointment = async (req, res) => {
       });
     }
 
-    // -----------------------------------------------
     // Validate consultation type
-    // -----------------------------------------------
     if (
-      consultationType &&
+      !consultationType ||
       !["video", "audio", "clinic"].includes(consultationType)
     ) {
       return res.status(400).json({
@@ -313,6 +263,7 @@ const bookAppointment = async (req, res) => {
     const selectedDate = new Date(appointmentDate);
     selectedDate.setHours(0, 0, 0, 0);
 
+    // Check Doctor Leave
     const leave = await DoctorLeave.findOne({
       doctor: doctorProfile._id,
       status: "Active",
@@ -336,7 +287,6 @@ const bookAppointment = async (req, res) => {
         });
       }
 
-      // Half Day → only block overlapping time
       if (leave.leaveType === "Half Day" && leave.fromTime && leave.toTime) {
         const [slotStart, slotEnd] = (appointmentTime || "")
           .split(" - ")
@@ -355,18 +305,16 @@ const bookAppointment = async (req, res) => {
       }
     }
 
-    // -----------------------------------------------
     // Check if slot is already booked
-    // -----------------------------------------------
     const existingAppointment = await Appointment.findOne({
       doctor: doctorProfile._id,
       appointmentDate: selectedDate,
       appointmentTime,
       status: {
-        $in: ["Pending", "Confirmed", "In Progress"],
+        $in: ["Pending", "Confirmed", "In Progress", "Pending Payment"],
       },
     });
- 
+
     if (existingAppointment) {
       return res.status(400).json({
         success: false,
@@ -374,25 +322,27 @@ const bookAppointment = async (req, res) => {
       });
     }
 
-    // -----------------------------------------------
+    // Decide status based on consultation type
+    let status = "Pending"; // default for clinic
+    if (consultationType === "video" || consultationType === "audio") {
+      status = "Pending Payment";
+    }
+
     // Create appointment
-    // -----------------------------------------------
     const appointment = await Appointment.create({
       patient: patientId,
       doctor: doctorProfile._id,
       appointmentDate: selectedDate,
       appointmentTime,
-      consultationType: consultationType || "video",
-      status: "Pending",
+      consultationType,
+      status,
+      consultationFee: doctorProfile.consultationFee || 0,
     });
 
-    // =================================================
-    // ADDED: NOTIFICATION / EMAIL / SMS
-    // Patient booked an appointment
-    // =================================================
-
-    const patientUser =
-      await User.findById(patientId).select("name email phone");
+    // Notifications / Email / SMS
+    const patientUser = await User.findById(patientId).select(
+      "name email phone"
+    );
 
     const doctorUser = doctorProfile.user
       ? await User.findById(doctorProfile.user).select("name email phone")
@@ -400,78 +350,99 @@ const bookAppointment = async (req, res) => {
 
     const bookingDate = formatAppointmentDate(selectedDate);
 
-    const bookingType = consultationType || "video";
-
+    // Patient notification
     await createAppointmentNotification({
       user: patientId,
       appointment,
-      title: "Appointment Request Sent",
+      title:
+        consultationType === "clinic"
+          ? "Appointment Request Sent"
+          : "Appointment Created - Payment Required",
       message:
-        "Your appointment request has been sent to the doctor and is waiting for approval.",
+        consultationType === "clinic"
+          ? "Your clinic visit request has been sent to the doctor and is waiting for approval."
+          : "Your appointment has been created. Please complete the payment to confirm.",
       type: "appointment-booked",
     });
 
-    if (doctorProfile.user) {
+    // Doctor notification (only for clinic)
+    if (consultationType === "clinic" && doctorProfile.user) {
       await createAppointmentNotification({
         user: doctorProfile.user,
         appointment,
-        title: "New Appointment Request",
-        message:
-          `${patientUser?.name || "A patient"} requested an appointment for ` +
-          `${bookingDate} at ${appointmentTime}.`,
+        title: "New Clinic Visit Request",
+        message: `${
+          patientUser?.name || "A patient"
+        } requested a clinic visit for ${bookingDate} at ${appointmentTime}.`,
         type: "appointment-booked",
       });
     }
 
+    // Emails
     await sendAppointmentEmail({
       to: patientUser?.email,
-      subject: "Appointment Request Sent",
+      subject:
+        consultationType === "clinic"
+          ? "Clinic Visit Request Sent"
+          : "Complete Payment for Your Appointment",
       message:
         `Hello ${patientUser?.name || "Patient"},\n\n` +
-        `Your appointment request has been sent successfully.\n\n` +
+        (consultationType === "clinic"
+          ? `Your clinic visit request has been sent successfully.\n\n`
+          : `Your appointment has been created. Please complete the payment.\n\n`) +
         `Doctor: ${doctorProfile.name}\n` +
         `Date: ${bookingDate}\n` +
         `Time: ${appointmentTime}\n` +
-        `Consultation: ${bookingType}\n\n` +
-        `Please wait for the doctor's approval.`,
+        `Consultation: ${consultationType}\n\n` +
+        (consultationType === "clinic"
+          ? `Please wait for the doctor's approval.`
+          : `After payment, the doctor will review your request.`),
     });
 
-    await sendAppointmentEmail({
-      to: doctorUser?.email,
-      subject: "New Appointment Request",
-      message:
-        `Hello ${doctorProfile.name || "Doctor"},\n\n` +
-        `${patientUser?.name || "A patient"} has requested an appointment.\n\n` +
-        `Date: ${bookingDate}\n` +
-        `Time: ${appointmentTime}\n` +
-        `Consultation: ${bookingType}\n\n` +
-        `Please open your doctor dashboard to review the request.`,
-    });
+    if (consultationType === "clinic") {
+      await sendAppointmentEmail({
+        to: doctorUser?.email,
+        subject: "New Clinic Visit Request",
+        message:
+          `Hello ${doctorProfile.name || "Doctor"},\n\n` +
+          `${patientUser?.name || "A patient"} has requested a clinic visit.\n\n` +
+          `Date: ${bookingDate}\n` +
+          `Time: ${appointmentTime}\n\n` +
+          `Please open your doctor dashboard to review the request.`,
+      });
+    }
 
+    // SMS
     await sendAppointmentSMS({
       to: patientUser?.phone,
       message:
-        `Dr. Sharma: Your appointment request was sent for ` +
-        `${bookingDate} at ${appointmentTime}. Waiting for doctor approval.`,
+        consultationType === "clinic"
+          ? `Dr. Sharma: Your clinic visit request was sent for ${bookingDate} at ${appointmentTime}. Waiting for doctor approval.`
+          : `Dr. Sharma: Appointment created for ${bookingDate} at ${appointmentTime}. Please complete payment.`,
     });
 
-    await sendAppointmentSMS({
-      to: doctorUser?.phone,
-      message:
-        `Dr. Sharma: New appointment request from ` +
-        `${patientUser?.name || "patient"} for ${bookingDate} at ${appointmentTime}.`,
-    });
+    if (consultationType === "clinic") {
+      await sendAppointmentSMS({
+        to: doctorUser?.phone,
+        message: `Dr. Sharma: New clinic visit request from ${
+          patientUser?.name || "patient"
+        } for ${bookingDate} at ${appointmentTime}.`,
+      });
+    }
 
     const populatedAppointment = await Appointment.findById(appointment._id)
       .populate(
         "doctor",
-        "name specialization qualification experience hospital image consultationFee",
+        "name specialization qualification experience hospital image consultationFee clinicAddress"
       )
       .populate("patient", "name email phone");
 
     return res.status(201).json({
       success: true,
-      message: "Appointment request sent. Waiting for doctor approval.",
+      message:
+        consultationType === "clinic"
+          ? "Clinic visit request sent. Waiting for doctor approval."
+          : "Appointment created. Please complete payment.",
       appointment: populatedAppointment,
     });
   } catch (error) {
@@ -482,11 +453,211 @@ const bookAppointment = async (req, res) => {
     });
   }
 };
+const getAppointmentById = async (req, res) => {
+  try {
+    const appointment = await Appointment.findById(req.params.id)
+      .populate(
+        "doctor",
+        "name specialization hospital image consultationFee"
+      )
+      .populate("patient", "name email phone");
+
+    if (!appointment) {
+      return res.status(404).json({
+        success: false,
+        message: "Appointment not found",
+      });
+    }
+
+    // Only allow patient who owns it (or admin)
+    if (
+      appointment.patient._id.toString() !== req.user._id.toString() &&
+      req.user.role !== "admin"
+    ) {
+      return res.status(403).json({
+        success: false,
+        message: "Not authorized",
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      appointment,
+    });
+  } catch (error) {
+    console.error("Get Appointment Error:", error);
+    res.status(500).json({
+      success: false,
+      message: error.message,
+    });
+  }
+};
 // =====================================================
-// PATIENT ALL APPOINTMENTS
-// Admin / internal use if required
+// CREATE PAYU PAYMENT
 // =====================================================
 
+
+const createPayuPayment = async (req, res) => {
+  try {
+    const appointment = await Appointment.findOne({
+      _id: req.params.id,
+      patient: req.user._id,
+    }).populate("doctor", "name consultationFee");
+
+    if (!appointment) {
+      return res.status(404).json({
+        success: false,
+        message: "Appointment not found",
+      });
+    }
+
+    if (appointment.status !== "Pending Payment") {
+      return res.status(400).json({
+        success: false,
+        message: "This appointment is not eligible for payment",
+      });
+    }
+
+    // ========== PAYU CREDENTIALS ==========
+    const key = process.env.PAYU_MERCHANT_KEY;
+    const salt = process.env.PAYU_MERCHANT_SALT;
+
+    if (!key || !salt) {
+      return res.status(500).json({
+        success: false,
+        message: "PayU credentials not configured",
+      });
+    }
+
+    const amount = Number(
+      appointment.consultationFee || appointment.doctor?.consultationFee || 0
+    ).toFixed(2); // IMPORTANT: must be string with 2 decimals
+
+    const txnid = `TXN${appointment._id.toString().slice(-8)}${Date.now()}`;
+    const productinfo = "Doctor Consultation";
+    const firstname = (req.user.name || "Patient").replace(/[^a-zA-Z0-9 ]/g, "");
+    const email = req.user.email || "patient@example.com";
+    const phone = (req.user.phone || "9999999999").toString().replace(/\D/g, "").slice(-10);
+
+    const surl = `${process.env.FRONTEND_URL}/payment/success`;
+    const furl = `${process.env.FRONTEND_URL}/payment/failure`;
+
+    // ========== CORRECT HASH ==========
+    // Sequence: key|txnid|amount|productinfo|firstname|email|||||||||||salt
+    const hashString = `${key}|${txnid}|${amount}|${productinfo}|${firstname}|${email}|||||||||||${salt}`;
+    
+    const hash = crypto
+      .createHash("sha512")
+      .update(hashString)
+      .digest("hex");
+
+    // Save txnid
+    appointment.paymentId = txnid;
+    await appointment.save();
+
+    console.log("PayU Hash String →", hashString); // for debugging
+    console.log("PayU Hash →", hash);
+
+    return res.status(200).json({
+      success: true,
+      paymentData: {
+        key,
+        txnid,
+        amount,
+        productinfo,
+        firstname,
+        email,
+        phone,
+        surl,
+        furl,
+        hash,
+        service_provider: "payu_paisa",
+      },
+    });
+  } catch (error) {
+    console.error("Create PayU Payment Error:", error);
+    return res.status(500).json({
+      success: false,
+      message: error.message,
+    });
+  }
+};
+// =====================================================
+// MARK APPOINTMENT AS PAID (Video / Audio)
+// =====================================================
+const markAppointmentPaid = async (req, res) => {
+  try {
+    const appointment = await Appointment.findOne({
+      _id: req.params.id,
+      patient: req.user._id,
+    });
+
+    if (!appointment) {
+      return res.status(404).json({
+        success: false,
+        message: "Appointment not found",
+      });
+    }
+
+    if (appointment.status !== "Pending Payment") {
+      return res.status(400).json({
+        success: false,
+        message: `Cannot mark as paid. Current status: ${appointment.status}`,
+      });
+    }
+
+    // Update status after successful payment
+    appointment.status = "Pending"; // now waiting for doctor approval
+    appointment.paymentStatus = "paid";
+    appointment.paymentId = req.body.paymentId || null;
+    appointment.paidAt = new Date();
+
+    await appointment.save();
+
+    // Notify doctor now (after payment)
+    const doctorProfile = await Doctor.findById(appointment.doctor);
+    const patientUser = await User.findById(appointment.patient).select(
+      "name email phone"
+    );
+
+    if (doctorProfile?.user) {
+      await createAppointmentNotification({
+        user: doctorProfile.user,
+        appointment,
+        title: "New Paid Appointment Request",
+        message: `${
+          patientUser?.name || "A patient"
+        } has paid and requested an appointment.`,
+        type: "appointment-booked",
+      });
+    }
+
+    const populated = await Appointment.findById(appointment._id)
+      .populate(
+        "doctor",
+        "name specialization hospital image consultationFee"
+      )
+      .populate("patient", "name email phone");
+
+    return res.status(200).json({
+      success: true,
+      message: "Payment successful. Waiting for doctor approval.",
+      appointment: populated,
+    });
+  } catch (error) {
+    console.error("Mark Paid Error:", error);
+    return res.status(500).json({
+      success: false,
+      message: error.message,
+    });
+  }
+};
+
+
+
+// =====================================================
+// PATIENT ALL APPOINTMENTS
+// =====================================================
 const patientAppointments = async (req, res) => {
   try {
     const appointments = await Appointment.find({
@@ -494,7 +665,7 @@ const patientAppointments = async (req, res) => {
     })
       .populate(
         "doctor",
-        "name specialization qualification experience hospital image consultationFee",
+        "name specialization qualification experience hospital image consultationFee"
       )
       .sort({
         appointmentDate: -1,
@@ -508,7 +679,6 @@ const patientAppointments = async (req, res) => {
     });
   } catch (error) {
     console.error("Patient Appointments Error:", error);
-
     res.status(500).json({
       success: false,
       message: error.message,
@@ -519,7 +689,6 @@ const patientAppointments = async (req, res) => {
 // =====================================================
 // LOGGED-IN PATIENT APPOINTMENTS
 // =====================================================
-
 const getMyPatientAppointments = async (req, res) => {
   try {
     const appointments = await Appointment.find({
@@ -527,7 +696,7 @@ const getMyPatientAppointments = async (req, res) => {
     })
       .populate(
         "doctor",
-        "name specialization qualification experience hospital image consultationFee",
+        "name specialization qualification experience hospital image consultationFee"
       )
       .sort({
         appointmentDate: -1,
@@ -541,18 +710,16 @@ const getMyPatientAppointments = async (req, res) => {
     });
   } catch (error) {
     console.error("My Patient Appointments Error:", error);
-
     res.status(500).json({
       success: false,
       message: error.message,
     });
   }
 };
+
 // =====================================================
 // PATIENT CONSULTATION HISTORY
-// Completed + Cancelled appointments
 // =====================================================
-
 const patientHistory = async (req, res) => {
   try {
     const appointments = await Appointment.find({
@@ -563,7 +730,7 @@ const patientHistory = async (req, res) => {
     })
       .populate(
         "doctor",
-        "name specialization qualification experience hospital image consultationFee",
+        "name specialization qualification experience hospital image consultationFee"
       )
       .sort({
         appointmentDate: -1,
@@ -577,21 +744,18 @@ const patientHistory = async (req, res) => {
     });
   } catch (error) {
     console.error("Patient History Error:", error);
-
     return res.status(500).json({
       success: false,
       message: error.message || "Unable to load consultation history",
     });
   }
 };
+
 // =====================================================
 // DOCTOR APPOINTMENTS
-// Logged-in doctor only
 // =====================================================
-
 const doctorAppointments = async (req, res) => {
   try {
-    // Find doctor profile using logged-in user
     const doctor = await Doctor.findOne({
       user: req.user._id,
     });
@@ -609,7 +773,7 @@ const doctorAppointments = async (req, res) => {
       .populate("patient", "name email phone")
       .populate(
         "doctor",
-        "name specialization qualification experience hospital image consultationFee",
+        "name specialization qualification experience hospital image consultationFee"
       )
       .sort({
         appointmentDate: 1,
@@ -624,70 +788,18 @@ const doctorAppointments = async (req, res) => {
     });
   } catch (error) {
     console.error("Doctor Appointments Error:", error);
-
     res.status(500).json({
       success: false,
       message: error.message,
     });
   }
 };
-// =====================================================
-// SEND APPOINTMENT SMS
-// =====================================================
 
-const sendAppointmentSMS = async ({ to, message }) => {
-  try {
-    if (!to) {
-      console.warn("SMS skipped: recipient phone is missing.");
-
-      return {
-        success: false,
-        skipped: true,
-        message: "Recipient phone is missing",
-      };
-    }
-
-    if (typeof sendSMS !== "function") {
-      console.warn("SMS skipped: sendSMS function is unavailable.");
-
-      return {
-        success: false,
-        skipped: true,
-        message: "sendSMS function is unavailable",
-      };
-    }
-
-    const result = await sendSMS(to, message);
-
-    if (result?.success) {
-      console.log("Appointment SMS sent successfully:", result.sid || "");
-    } else {
-      console.warn(
-        "Appointment SMS was not sent:",
-        result?.message || result?.error || "Unknown SMS error",
-      );
-    }
-
-    return result;
-  } catch (error) {
-    console.error("Appointment SMS failed:", error.message);
-
-    // IMPORTANT:
-    // SMS failure must NOT make appointment API fail.
-    return {
-      success: false,
-      error: error.message,
-    };
-  }
-};
 // =====================================================
 // DOCTOR ACCEPT APPOINTMENT
-// Pending → Confirmed
 // =====================================================
-
 const acceptAppointment = async (req, res) => {
   try {
-    // Find logged-in doctor's profile
     const doctor = await Doctor.findOne({
       user: req.user._id,
     });
@@ -699,8 +811,6 @@ const acceptAppointment = async (req, res) => {
       });
     }
 
-    // IMPORTANT:
-    // Appointment must belong to this doctor
     const appointment = await Appointment.findOne({
       _id: req.params.id,
       doctor: doctor._id,
@@ -730,20 +840,13 @@ const acceptAppointment = async (req, res) => {
     }
 
     appointment.status = "Confirmed";
-
     await appointment.save();
 
     await appointment.populate("patient", "name email phone");
-
     await appointment.populate(
       "doctor",
-      "name specialization hospital image consultationFee",
+      "name specialization hospital image consultationFee"
     );
-
-    // =================================================
-    // ADDED: NOTIFICATION / EMAIL / SMS
-    // Doctor accepted appointment
-    // =================================================
 
     const acceptedPatient = appointment.patient;
     const acceptedDoctor = appointment.doctor;
@@ -784,7 +887,6 @@ const acceptAppointment = async (req, res) => {
     });
   } catch (error) {
     console.error("Accept Appointment Error:", error);
-
     res.status(500).json({
       success: false,
       message: error.message,
@@ -794,9 +896,7 @@ const acceptAppointment = async (req, res) => {
 
 // =====================================================
 // DOCTOR REJECT / CANCEL APPOINTMENT
-// Pending/Confirmed → Cancelled
 // =====================================================
-
 const rejectAppointment = async (req, res) => {
   try {
     const doctor = await Doctor.findOne({
@@ -837,19 +937,13 @@ const rejectAppointment = async (req, res) => {
     }
 
     appointment.status = "Cancelled";
-
     appointment.cancellationReason =
       req.body.reason || "Appointment cancelled by doctor";
 
     await appointment.save();
 
-    // =================================================
-    // ADDED: NOTIFICATION / EMAIL / SMS
-    // Doctor rejected/cancelled appointment
-    // =================================================
-
     const rejectedPatient = await User.findById(appointment.patient).select(
-      "name email phone",
+      "name email phone"
     );
 
     const rejectionReason =
@@ -890,7 +984,6 @@ const rejectAppointment = async (req, res) => {
     });
   } catch (error) {
     console.error("Reject Appointment Error:", error);
-
     res.status(500).json({
       success: false,
       message: error.message,
@@ -900,9 +993,7 @@ const rejectAppointment = async (req, res) => {
 
 // =====================================================
 // START CONSULTATION
-// Confirmed → In Progress
 // =====================================================
-
 const startCall = async (req, res) => {
   try {
     const doctor = await Doctor.findOne({
@@ -936,9 +1027,7 @@ const startCall = async (req, res) => {
     }
 
     appointment.status = "In Progress";
-
     appointment.callStartedAt = new Date();
-
     await appointment.save();
 
     res.status(200).json({
@@ -948,7 +1037,6 @@ const startCall = async (req, res) => {
     });
   } catch (error) {
     console.error("Start Call Error:", error);
-
     res.status(500).json({
       success: false,
       message: error.message,
@@ -958,9 +1046,7 @@ const startCall = async (req, res) => {
 
 // =====================================================
 // END CONSULTATION
-// In Progress → Completed
 // =====================================================
-
 const endCall = async (req, res) => {
   try {
     const doctor = await Doctor.findOne({
@@ -994,13 +1080,10 @@ const endCall = async (req, res) => {
     }
 
     appointment.status = "Completed";
-
     appointment.callEndedAt = new Date();
 
-    // Calculate duration
     if (appointment.callStartedAt) {
       const durationMs = appointment.callEndedAt - appointment.callStartedAt;
-
       appointment.duration = Math.max(0, Math.floor(durationMs / 1000 / 60));
     }
 
@@ -1013,7 +1096,6 @@ const endCall = async (req, res) => {
     });
   } catch (error) {
     console.error("End Call Error:", error);
-
     res.status(500).json({
       success: false,
       message: error.message,
@@ -1023,9 +1105,7 @@ const endCall = async (req, res) => {
 
 // =====================================================
 // UPDATE APPOINTMENT
-// Restricted fields only
 // =====================================================
-
 const updateAppointment = async (req, res) => {
   try {
     const appointment = await Appointment.findById(req.params.id);
@@ -1037,7 +1117,6 @@ const updateAppointment = async (req, res) => {
       });
     }
 
-    // Only allow appointment date/time/type
     const allowedFields = [
       "appointmentDate",
       "appointmentTime",
@@ -1059,7 +1138,6 @@ const updateAppointment = async (req, res) => {
     });
   } catch (error) {
     console.error("Update Appointment Error:", error);
-
     res.status(500).json({
       success: false,
       message: error.message,
@@ -1070,7 +1148,6 @@ const updateAppointment = async (req, res) => {
 // =====================================================
 // PATIENT CANCEL APPOINTMENT
 // =====================================================
-
 const cancelAppointment = async (req, res) => {
   try {
     const appointment = await Appointment.findOne({
@@ -1100,18 +1177,11 @@ const cancelAppointment = async (req, res) => {
     }
 
     appointment.status = "Cancelled";
-
     appointment.cancellationReason = req.body.reason || "Cancelled by patient";
-
     await appointment.save();
 
-    // =================================================
-    // ADDED: NOTIFICATION / EMAIL / SMS
-    // Patient cancelled appointment
-    // =================================================
-
     const cancelledDoctor = await Doctor.findById(appointment.doctor).select(
-      "user name",
+      "user name"
     );
 
     const cancelledDoctorUser = cancelledDoctor?.user
@@ -1119,7 +1189,7 @@ const cancelAppointment = async (req, res) => {
       : null;
 
     const cancellingPatient = await User.findById(appointment.patient).select(
-      "name email phone",
+      "name email phone"
     );
 
     const patientCancellationReason =
@@ -1162,7 +1232,6 @@ const cancelAppointment = async (req, res) => {
     });
   } catch (error) {
     console.error("Cancel Appointment Error:", error);
-
     res.status(500).json({
       success: false,
       message: error.message,
@@ -1173,7 +1242,6 @@ const cancelAppointment = async (req, res) => {
 // =====================================================
 // GET APPOINTMENT BY ROOM ID
 // =====================================================
-
 const getAppointmentByRoom = async (req, res) => {
   try {
     const appointment = await Appointment.findOne({
@@ -1181,7 +1249,7 @@ const getAppointmentByRoom = async (req, res) => {
     })
       .populate(
         "doctor",
-        "name specialization qualification experience hospital image",
+        "name specialization qualification experience hospital image"
       )
       .populate("patient", "name email phone");
 
@@ -1198,90 +1266,54 @@ const getAppointmentByRoom = async (req, res) => {
     });
   } catch (error) {
     console.error("Get Appointment By Room Error:", error);
-
     res.status(500).json({
       success: false,
       message: error.message,
     });
   }
 };
+
 // =====================================================
 // ADMIN DASHBOARD
-// Get all patients, doctors, appointments and revenue
 // =====================================================
-
 const adminDashboard = async (req, res) => {
   try {
-    // -------------------------------------------------
-    // 1. Total registered patients
-    // -------------------------------------------------
-
     const totalPatients = await User.countDocuments({
       role: "patient",
     });
 
-    // -------------------------------------------------
-    // 2. Total registered doctors
-    // -------------------------------------------------
-
     const totalDoctors = await Doctor.countDocuments();
-
-    // -------------------------------------------------
-    // 3. Total appointments
-    // -------------------------------------------------
-
     const totalAppointments = await Appointment.countDocuments();
-
-    // -------------------------------------------------
-    // 4. Get all appointments
-    // -------------------------------------------------
 
     const appointments = await Appointment.find()
       .populate("patient", "name email phone")
       .populate(
         "doctor",
-        "name specialization qualification experience hospital image consultationFee",
+        "name specialization qualification experience hospital image consultationFee"
       )
       .sort({
         appointmentDate: -1,
         createdAt: -1,
       });
 
-    // -------------------------------------------------
-    // 5. Calculate revenue
-    //
-    // Appointment does not store consultationFee.
-    // Fee comes from Doctor profile.
-    // -------------------------------------------------
-
     const totalRevenue = appointments.reduce((total, appointment) => {
-      // Do not count cancelled appointments
       if (appointment.status === "Cancelled") {
         return total;
       }
-
       const fee = Number(appointment.doctor?.consultationFee) || 0;
-
       return total + fee;
     }, 0);
 
-    // -------------------------------------------------
-    // 6. Send dashboard data
-    // -------------------------------------------------
-
     return res.status(200).json({
       success: true,
-
       totalPatients,
       totalDoctors,
       totalAppointments,
       totalRevenue,
-
       appointments,
     });
   } catch (error) {
     console.error("Admin Dashboard Error:", error);
-
     return res.status(500).json({
       success: false,
       message: error.message || "Unable to load admin dashboard",
@@ -1289,30 +1321,24 @@ const adminDashboard = async (req, res) => {
   }
 };
 
+// =====================================================
+// EXPORTS
+// =====================================================
 module.exports = {
   bookAppointment,
-
+  getAppointmentById,
+  createPayuPayment,
+  markAppointmentPaid,
   patientAppointments,
-
   getMyPatientAppointments,
-
   patientHistory,
-
   doctorAppointments,
-
   acceptAppointment,
-
   rejectAppointment,
-
   updateAppointment,
-
   cancelAppointment,
-
   startCall,
-
   endCall,
-
   getAppointmentByRoom,
-
   adminDashboard,
 };

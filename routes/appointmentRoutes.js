@@ -6,9 +6,12 @@ const adminAuth = require("../middleware/adminAuth");
 
 const {
   bookAppointment,
+  getAppointmentById,
+  createPayuPayment,
+  markAppointmentPaid,
   patientAppointments,
   getMyPatientAppointments,
-   patientHistory,
+  patientHistory,
   doctorAppointments,
   acceptAppointment,
   rejectAppointment,
@@ -17,140 +20,49 @@ const {
   startCall,
   endCall,
   getAppointmentByRoom,
-   adminDashboard,
+  adminDashboard,
 } = require("../controllers/appointmentController");
 
 // =====================================================
-// ADMIN ROUTES
+// ADMIN
 // =====================================================
-
-// GET /api/appointments/admin
-// Admin can see complete platform data
-router.get(
-  "/admin",
-  adminAuth,
-  adminDashboard
-);
-// =====================================================
-// PATIENT ROUTES
-// =====================================================
-
-
-// Book Appointment
-// POST /api/appointments
-router.post(
-  "/",
-  auth,
-  bookAppointment
-);
-
-
-// Logged-in Patient Appointments
-// GET /api/appointments/patient
-router.get(
-  "/patient",
-  auth,
-  getMyPatientAppointments
-);
+router.get("/admin", adminAuth, adminDashboard);
 
 // =====================================================
-// PATIENT HISTORY
+// PATIENT
 // =====================================================
+router.post("/", auth, bookAppointment);
 
-
-// Patient Appointments By User ID
-// GET /api/appointments/patient/:id
-router.get(
-  "/patient/:id",
-  auth,
-  patientAppointments
-);
-
-
-// Patient Cancel Appointment
-// PUT /api/appointments/cancel/:id
-router.put(
-  "/cancel/:id",
-  auth,
-  cancelAppointment
-);
-
+router.get("/patient", auth, getMyPatientAppointments);
+router.get("/patient/history", auth, patientHistory);
+router.get("/patient/:id", auth, patientAppointments);
+router.put("/cancel/:id", auth, cancelAppointment);
 
 // =====================================================
-// DOCTOR ROUTES
+// DOCTOR
 // =====================================================
+router.get("/doctor", auth, doctorAppointments);
 
-
-// Logged-in Doctor Appointments
-// GET /api/appointments/doctor
-//
-// IMPORTANT:
-// No :id is required.
-// Backend gets doctor from req.user._id.
-router.get(
-  "/doctor",
-  auth,
-  doctorAppointments
-);
-
-
-// Doctor Accept Appointment
-// PUT /api/appointments/:id/accept
-router.put(
-  "/:id/accept",
-  auth,
-  acceptAppointment
-);
-
-
-// Doctor Reject Appointment
-// PUT /api/appointments/:id/reject
-router.put(
-  "/:id/reject",
-  auth,
-  rejectAppointment
-);
-
-
-// Start Video / Audio Consultation
-// PUT /api/appointments/:id/start
-router.put(
-  "/:id/start",
-  auth,
-  startCall
-);
-
-
-// End Video / Audio Consultation
-// PUT /api/appointments/:id/end
-router.put(
-  "/:id/end",
-  auth,
-  endCall
-);
-
+router.put("/:id/accept", auth, acceptAppointment);
+router.put("/:id/reject", auth, rejectAppointment);
+router.put("/:id/start", auth, startCall);
+router.put("/:id/end", auth, endCall);
 
 // =====================================================
-// APPOINTMENT ROUTES
+// ROOM
 // =====================================================
+router.get("/room/:roomId", auth, getAppointmentByRoom);
 
+// =====================================================
+// PAYMENT
+// =====================================================
+router.post("/:id/create-payu", auth, createPayuPayment);
+router.patch("/:id/pay", auth, markAppointmentPaid);
 
-// Get Appointment By Room ID
-// GET /api/appointments/room/:roomId
-router.get(
-  "/room/:roomId",
-  auth,
-  getAppointmentByRoom
-);
-
-
-// Update Appointment
-// PUT /api/appointments/:id
-router.put(
-  "/:id",
-  auth,
-  updateAppointment
-);
-
+// =====================================================
+// GENERIC ROUTES (MUST BE LAST)
+// =====================================================
+router.get("/:id", auth, getAppointmentById);
+router.put("/:id", auth, updateAppointment);
 
 module.exports = router;

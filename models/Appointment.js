@@ -5,7 +5,6 @@ const appointmentSchema = new mongoose.Schema(
     // ==========================================
     // Patient
     // ==========================================
-
     patient: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
@@ -16,7 +15,6 @@ const appointmentSchema = new mongoose.Schema(
     // ==========================================
     // Doctor
     // ==========================================
-
     doctor: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Doctor",
@@ -27,7 +25,6 @@ const appointmentSchema = new mongoose.Schema(
     // ==========================================
     // Appointment Date
     // ==========================================
-
     appointmentDate: {
       type: Date,
       required: true,
@@ -37,7 +34,6 @@ const appointmentSchema = new mongoose.Schema(
     // ==========================================
     // Appointment Time
     // ==========================================
-
     appointmentTime: {
       type: String,
       required: true,
@@ -47,17 +43,16 @@ const appointmentSchema = new mongoose.Schema(
     // ==========================================
     // Consultation Type
     // ==========================================
-
     consultationType: {
       type: String,
       enum: ["video", "audio", "clinic"],
       default: "video",
+      required: true,
     },
 
     // ==========================================
     // Patient Symptoms
     // ==========================================
-
     symptoms: {
       type: [String],
       default: [],
@@ -72,7 +67,6 @@ const appointmentSchema = new mongoose.Schema(
     // ==========================================
     // Video / Audio Room
     // ==========================================
-
     roomId: {
       type: String,
       unique: true,
@@ -83,13 +77,13 @@ const appointmentSchema = new mongoose.Schema(
     // ==========================================
     // Appointment Status
     // ==========================================
-
     status: {
       type: String,
       enum: [
-        "Pending",
-        "Confirmed",
-        "In Progress",
+        "Pending Payment", // video / audio → waiting for payment
+        "Pending",         // waiting for doctor approval
+        "Confirmed",       // doctor accepted
+        "In Progress",     // consultation started
         "Completed",
         "Cancelled",
       ],
@@ -98,9 +92,33 @@ const appointmentSchema = new mongoose.Schema(
     },
 
     // ==========================================
+    // Payment Fields
+    // ==========================================
+    consultationFee: {
+      type: Number,
+      default: 0,
+    },
+
+    paymentStatus: {
+      type: String,
+      enum: ["pending", "paid", "failed"],
+      default: "pending",
+    },
+
+    paymentId: {
+      type: String,
+      default: null,
+      trim: true,
+    },
+
+    paidAt: {
+      type: Date,
+      default: null,
+    },
+
+    // ==========================================
     // Cancellation
     // ==========================================
-
     cancellationReason: {
       type: String,
       default: "",
@@ -110,7 +128,6 @@ const appointmentSchema = new mongoose.Schema(
     // ==========================================
     // Doctor Notes
     // ==========================================
-
     doctorNotes: {
       type: String,
       default: "",
@@ -120,7 +137,6 @@ const appointmentSchema = new mongoose.Schema(
     // ==========================================
     // Call Information
     // ==========================================
-
     callStartedAt: {
       type: Date,
     },
@@ -161,8 +177,4 @@ appointmentSchema.index({
 // ==========================================
 // Model
 // ==========================================
-
-module.exports = mongoose.model(
-  "Appointment",
-  appointmentSchema
-);
+module.exports = mongoose.model("Appointment", appointmentSchema);

@@ -1,125 +1,3 @@
-// const express = require("express");
-
-// const router = express.Router();
-
-// const doctorAuth = require("../middleware/doctorAuth");
-
-// const {
-//   addDoctor,
-//   getDoctors,
-//   getDoctor,
-//   getMyDoctorProfile,
-//   updateDoctor,
-//   updateConsultationType,
-//   deleteDoctor,
-//   getSpecializations,
-// } = require("../controllers/doctorController");
-
-// // =====================================================
-// // PUBLIC
-// // =====================================================
-
-// // Get all doctors
-// // GET /api/doctors
-
-// router.get(
-//   "/",
-//   getDoctors
-// );
-
-// // Get all specializations
-// // GET /api/doctors/specializations
-
-// router.get(
-//   "/specializations",
-//   getSpecializations
-// );
-
-// // =====================================================
-// // DOCTOR ONLY
-// // =====================================================
-
-// // Get logged-in doctor profile
-// // GET /api/doctors/me
-
-// router.get(
-//   "/me",
-//   doctorAuth,
-//   getMyDoctorProfile
-// );
-
-// // Create doctor profile
-// // POST /api/doctors
-
-// router.post(
-//   "/",
-//   doctorAuth,
-//   addDoctor
-// );
-
-// // Update complete doctor profile
-// // PUT /api/doctors/update
-
-// router.put(
-//   "/update",
-//   doctorAuth,
-//   updateDoctor
-// );
-
-// // Update consultation types only
-// // PUT /api/doctors/consultation-type
-
-// router.put(
-//   "/consultation-type",
-//   doctorAuth,
-//   updateConsultationType
-// );
-
-// // Delete doctor profile
-// // DELETE /api/doctors/delete
-
-// router.delete(
-//   "/delete",
-//   doctorAuth,
-//   deleteDoctor
-// );
-// // =====================================================
-// // GET DOCTOR BY ID + Q&A
-// // =====================================================
-
-// // Get Common Questions & Answers for a doctor
-// // GET /api/doctors/:id/qa
-// router.get("/:id/qa", async (req, res) => {
-//   try {
-//     const doctor = await Doctor.findById(req.params.id);
-
-//     if (!doctor) {
-//       return res.status(404).json({ message: "Doctor not found" });
-//     }
-
-//     const qa = generateDoctorQA(doctor);
-//     res.json({ success: true, qa });
-//   } catch (error) {
-//     console.error("Error generating Q&A:", error);
-//     res.status(500).json({ message: "Server error" });
-//   }
-// });
-// // =====================================================
-// // GET DOCTOR BY ID
-// // =====================================================
-
-// // MUST BE LAST
-
-// // GET /api/doctors/:id
-
-// router.get(
-//   "/:id",
-//   getDoctor
-// );
-
-// module.exports = router;
-
-
 const express = require("express");
 const router = express.Router();
 const doctorAuth = require("../middleware/doctorAuth");
@@ -135,8 +13,10 @@ const {
   getSpecializations,
 } = require("../controllers/doctorController");
 
-const { generateDoctorQA } = require("../utils/generateDoctorQA");
-const Doctor = require("../models/Doctor"); // ← make sure this path is correct
+const { generateDoctorQA, generateDoctorServices } = require("../utils/generateDoctorQA");
+const Doctor = require("../models/Doctor");
+const Review = require("../models/Review");
+// const Appointment = require("../models/Appointment"); // uncomment when ready
 
 // ====================== PUBLIC ======================
 router.get("/", getDoctors);
@@ -149,11 +29,9 @@ router.put("/update", doctorAuth, updateDoctor);
 router.put("/consultation-type", doctorAuth, updateConsultationType);
 router.delete("/delete", doctorAuth, deleteDoctor);
 
-// ====================== Q&A ROUTE (MUST BE BEFORE /:id) ======================
+// ====================== Q&A + SERVICES ======================
 router.get("/:id/qa", async (req, res) => {
   try {
-    console.log("Fetching QA for doctor ID:", req.params.id); // ← debug log
-
     const doctor = await Doctor.findById(req.params.id).lean();
 
     if (!doctor) {
@@ -161,10 +39,87 @@ router.get("/:id/qa", async (req, res) => {
     }
 
     const qa = generateDoctorQA(doctor);
-    return res.status(200).json({ success: true, qa });
+    const services = generateDoctorServices(doctor);
+
+    return res.status(200).json({
+      success: true,
+      qa,
+      services,
+    });
   } catch (error) {
     console.error("QA Error:", error);
     return res.status(500).json({ message: "Server error", error: error.message });
+  }
+});
+
+// ====================== REVIEWS ======================
+
+// GET reviews  ← THIS WAS MISSING
+router.get("/:id/reviews", async (req, res) => {
+  try {
+    const reviews = await Review.find({ doctor: req.params.id })
+      .sort({ createdAt: -1 })
+      .lean();
+
+    return res.status(200).json({
+      success: true,
+      reviews,
+    });
+  } catch (error) {
+    console.error("Error fetching reviews:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to fetch reviews",
+    });
+  }
+});
+
+// POST review
+router.post("/:id/reviews", async (req, res) => {
+  try {
+    const { patientName, rating, review, media } = req.body;
+
+    if (!patientName || !rating || !review) {
+      return res.status(400).json({
+        message: "patientName, rating and review are required",
+      });
+    }
+
+    if (rating < 1 || rating > 5) {
+      return res.status(400).json({
+        message: "Rating must be between 1 and 5",
+      });
+    }
+
+    const newReview = await Review.create({
+      doctor: req.params.id,
+      patientName,
+      rating,
+      review,
+      media: media || [],
+    });
+
+    return res.status(201).json({
+      success: true,
+      message: "Review added successfully",
+      review: newReview,
+    });
+  } catch (error) {
+    console.error("Error adding review:", error);
+    return res.status(500).json({
+      message: "Failed to add review",
+      error: error.message,
+    });
+  }
+});
+
+// ====================== HAS BOOKED (optional) ======================
+router.get("/:id/has-booked", async (req, res) => {
+  try {
+    // Temporary: always return false until you add auth + Appointment model
+    return res.json({ hasBooked: false });
+  } catch (error) {
+    return res.status(500).json({ hasBooked: false });
   }
 });
 
