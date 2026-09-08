@@ -64,7 +64,16 @@ const userSchema = new mongoose.Schema(
       default: null,
       select: false,
     },
+    googleId: {
+      type: String,
+      default: null,
+      sparse: true,
+    },
 
+    profileImage: {
+      type: String,
+      default: "",
+    },
     // ==========================================
     // LOGIN OTP (hashed)
     // ==========================================
@@ -82,7 +91,7 @@ const userSchema = new mongoose.Schema(
   },
   {
     timestamps: true,
-  }
+  },
 );
 
 // ==========================================

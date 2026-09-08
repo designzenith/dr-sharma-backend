@@ -6,6 +6,10 @@ const cors = require("cors");
 const dns = require("dns");
 const path = require("path");
 const { Server } = require("socket.io");
+const passport = require("passport");
+
+require("dotenv").config();
+require("./config/passport");
 
 // =====================================================
 // Config / Database
