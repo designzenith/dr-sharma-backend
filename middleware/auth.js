@@ -28,10 +28,21 @@ const auth = async (req, res, next) => {
 
     console.log("Decoded JWT:", decoded);
 
+    // Support both id and _id (most common issue)
+    const userId = decoded.id || decoded._id || decoded.userId;
+
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        message: "Invalid token payload",
+      });
+    }
+
     // Find user
-    const user = await User.findById(decoded.id).select("-password");
+    const user = await User.findById(userId).select("-password");
 
     if (!user) {
+      console.log("User not found for ID:", userId);
       return res.status(401).json({
         success: false,
         message: "User not found",
@@ -54,7 +65,7 @@ const auth = async (req, res, next) => {
 
     return res.status(401).json({
       success: false,
-      message: "Unauthorized",
+      message: "Unauthorized - " + error.message,
     });
   }
 };

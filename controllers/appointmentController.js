@@ -1,6 +1,7 @@
 const Appointment = require("../models/Appointment");
 const Doctor = require("../models/Doctor");
 const User = require("../models/User");
+const validatePatientIntake = require("../utils/validatePatientIntake");
 const { v4: uuidv4 } = require("uuid");
 const DoctorLeave = require("../models/DoctorLeave");
 const Notification = require("../models/Notification");
@@ -226,11 +227,19 @@ const sendAppointmentSMS = async ({ to, message }) => {
 // =====================================================
 // BOOK APPOINTMENT
 // =====================================================
+// =====================================================
+// BOOK APPOINTMENT
+// =====================================================
 const bookAppointment = async (req, res) => {
   try {
     const patientId = req.user._id;
-    const { doctor, appointmentDate, appointmentTime, consultationType } =
-      req.body;
+    const {
+      doctor,
+      appointmentDate,
+      appointmentTime,
+      consultationType,
+      patientIntake, // ← NEW
+    } = req.body;
 
     // Validate doctor
     const doctorProfile = await Doctor.findById(doctor);
@@ -257,6 +266,20 @@ const bookAppointment = async (req, res) => {
       return res.status(400).json({
         success: false,
         message: "Invalid consultation type",
+      });
+    }
+
+    // ========== VALIDATE PATIENT INTAKE ==========
+    const { isValid, errors } = validatePatientIntake(
+      patientIntake,
+      doctorProfile.intakeQuestions || []
+    );
+
+    if (!isValid) {
+      return res.status(400).json({
+        success: false,
+        message: "Please fill all required fields",
+        errors,
       });
     }
 
@@ -328,7 +351,7 @@ const bookAppointment = async (req, res) => {
       status = "Pending Payment";
     }
 
-    // Create appointment
+    // Create appointment (NOW WITH patientIntake)
     const appointment = await Appointment.create({
       patient: patientId,
       doctor: doctorProfile._id,
@@ -337,6 +360,7 @@ const bookAppointment = async (req, res) => {
       consultationType,
       status,
       consultationFee: doctorProfile.consultationFee || 0,
+      patientIntake: patientIntake || null, // ← SAVE FORM DATA
     });
 
     // Notifications / Email / SMS
@@ -349,6 +373,48 @@ const bookAppointment = async (req, res) => {
       : null;
 
     const bookingDate = formatAppointmentDate(selectedDate);
+
+    // Build patient intake summary for emails
+    let intakeSummary = "";
+    if (patientIntake) {
+      intakeSummary =
+        `\nPatient Details:\n` +
+        `Name: ${patientIntake.fullName || "-"}\n` +
+        `Age / Gender: ${patientIntake.age || "-"} / ${patientIntake.gender || "-"}\n` +
+        `Phone: ${patientIntake.phone || "-"}\n` +
+        `Email: ${patientIntake.email || "-"}\n` +
+        `Chief Complaint: ${patientIntake.chiefComplaint || "-"}\n`;
+
+      if (patientIntake.durationOfSymptoms) {
+        intakeSummary += `Duration: ${patientIntake.durationOfSymptoms}\n`;
+      }
+      if (patientIntake.currentMedications) {
+        intakeSummary += `Medications: ${patientIntake.currentMedications}\n`;
+      }
+      if (patientIntake.allergies) {
+        intakeSummary += `Allergies: ${patientIntake.allergies}\n`;
+      }
+      if (patientIntake.pastMedicalHistory) {
+        intakeSummary += `Past History: ${patientIntake.pastMedicalHistory}\n`;
+      }
+
+      // Specialty answers
+      if (
+        patientIntake.specialtyAnswers &&
+        Object.keys(patientIntake.specialtyAnswers).length > 0
+      ) {
+        intakeSummary += `\nSpecialty Questions (${doctorProfile.specialization}):\n`;
+        Object.entries(patientIntake.specialtyAnswers).forEach(([key, value]) => {
+          if (value) {
+            intakeSummary += `${key}: ${value}\n`;
+          }
+        });
+      }
+
+      if (patientIntake.additionalNotes) {
+        intakeSummary += `\nAdditional Notes: ${patientIntake.additionalNotes}\n`;
+      }
+    }
 
     // Patient notification
     await createAppointmentNotification({
@@ -372,7 +438,7 @@ const bookAppointment = async (req, res) => {
         appointment,
         title: "New Clinic Visit Request",
         message: `${
-          patientUser?.name || "A patient"
+          patientUser?.name || patientIntake?.fullName || "A patient"
         } requested a clinic visit for ${bookingDate} at ${appointmentTime}.`,
         type: "appointment-booked",
       });
@@ -380,13 +446,13 @@ const bookAppointment = async (req, res) => {
 
     // Emails
     await sendAppointmentEmail({
-      to: patientUser?.email,
+      to: patientUser?.email || patientIntake?.email,
       subject:
         consultationType === "clinic"
           ? "Clinic Visit Request Sent"
           : "Complete Payment for Your Appointment",
       message:
-        `Hello ${patientUser?.name || "Patient"},\n\n` +
+        `Hello ${patientUser?.name || patientIntake?.fullName || "Patient"},\n\n` +
         (consultationType === "clinic"
           ? `Your clinic visit request has been sent successfully.\n\n`
           : `Your appointment has been created. Please complete the payment.\n\n`) +
@@ -402,19 +468,33 @@ const bookAppointment = async (req, res) => {
     if (consultationType === "clinic") {
       await sendAppointmentEmail({
         to: doctorUser?.email,
-        subject: "New Clinic Visit Request",
+        subject: "New Clinic Visit Request + Patient Info",
         message:
           `Hello ${doctorProfile.name || "Doctor"},\n\n` +
-          `${patientUser?.name || "A patient"} has requested a clinic visit.\n\n` +
+          `${patientUser?.name || patientIntake?.fullName || "A patient"} has requested a clinic visit.\n\n` +
           `Date: ${bookingDate}\n` +
-          `Time: ${appointmentTime}\n\n` +
-          `Please open your doctor dashboard to review the request.`,
+          `Time: ${appointmentTime}\n` +
+          intakeSummary +
+          `\nPlease open your doctor dashboard to review the request.`,
+      });
+    } else {
+      // For video/audio also send intake to doctor after booking (optional)
+      await sendAppointmentEmail({
+        to: doctorUser?.email,
+        subject: "New Appointment Request (Payment Pending)",
+        message:
+          `Hello ${doctorProfile.name || "Doctor"},\n\n` +
+          `${patientUser?.name || patientIntake?.fullName || "A patient"} has created an appointment (payment pending).\n\n` +
+          `Date: ${bookingDate}\n` +
+          `Time: ${appointmentTime}\n` +
+          `Consultation: ${consultationType}\n` +
+          intakeSummary,
       });
     }
 
     // SMS
     await sendAppointmentSMS({
-      to: patientUser?.phone,
+      to: patientUser?.phone || patientIntake?.phone,
       message:
         consultationType === "clinic"
           ? `Dr. Sharma: Your clinic visit request was sent for ${bookingDate} at ${appointmentTime}. Waiting for doctor approval.`
@@ -425,7 +505,7 @@ const bookAppointment = async (req, res) => {
       await sendAppointmentSMS({
         to: doctorUser?.phone,
         message: `Dr. Sharma: New clinic visit request from ${
-          patientUser?.name || "patient"
+          patientUser?.name || patientIntake?.fullName || "patient"
         } for ${bookingDate} at ${appointmentTime}.`,
       });
     }
@@ -453,6 +533,8 @@ const bookAppointment = async (req, res) => {
     });
   }
 };
+
+
 const getAppointmentById = async (req, res) => {
   try {
     const appointment = await Appointment.findById(req.params.id)

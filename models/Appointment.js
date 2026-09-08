@@ -51,7 +51,7 @@ const appointmentSchema = new mongoose.Schema(
     },
 
     // ==========================================
-    // Patient Symptoms
+    // Patient Symptoms (old fields - kept for compatibility)
     // ==========================================
     symptoms: {
       type: [String],
@@ -62,6 +62,34 @@ const appointmentSchema = new mongoose.Schema(
       type: String,
       default: "",
       trim: true,
+    },
+
+    // ==========================================
+    // NEW: Full Patient Intake Form
+    // ==========================================
+    patientIntake: {
+      fullName: { type: String, trim: true },
+      age: { type: String, trim: true },
+      gender: { type: String, trim: true },
+      phone: { type: String, trim: true },
+      email: { type: String, trim: true },
+      emergencyContact: { type: String, trim: true },
+      address: { type: String, trim: true },
+
+      chiefComplaint: { type: String, trim: true },
+      durationOfSymptoms: { type: String, trim: true },
+      currentMedications: { type: String, trim: true },
+      allergies: { type: String, trim: true },
+      pastMedicalHistory: { type: String, trim: true },
+
+      // Specialty-specific answers (flexible key-value)
+      specialtyAnswers: {
+        type: Map,
+        of: String,
+        default: {},
+      },
+
+      additionalNotes: { type: String, trim: true },
     },
 
     // ==========================================

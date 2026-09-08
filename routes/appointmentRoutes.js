@@ -62,6 +62,7 @@ router.patch("/:id/pay", auth, markAppointmentPaid);
 // =====================================================
 // GENERIC ROUTES (MUST BE LAST)
 // =====================================================
+router.post("/", auth, bookAppointment);
 router.get("/:id", auth, getAppointmentById);
 router.put("/:id", auth, updateAppointment);
 
