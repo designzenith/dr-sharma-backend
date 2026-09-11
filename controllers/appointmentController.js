@@ -880,6 +880,104 @@ const doctorAppointments = async (req, res) => {
 // =====================================================
 // DOCTOR ACCEPT APPOINTMENT
 // =====================================================
+// const acceptAppointment = async (req, res) => {
+//   try {
+//     const doctor = await Doctor.findOne({
+//       user: req.user._id,
+//     });
+
+//     if (!doctor) {
+//       return res.status(404).json({
+//         success: false,
+//         message: "Doctor profile not found",
+//       });
+//     }
+
+//     const appointment = await Appointment.findOne({
+//       _id: req.params.id,
+//       doctor: doctor._id,
+//     });
+
+//     if (!appointment) {
+//       return res.status(404).json({
+//         success: false,
+//         message: "Appointment not found or does not belong to you",
+//       });
+//     }
+
+//     // Only Pending can be accepted
+//     if (appointment.status !== "Pending") {
+//       return res.status(400).json({
+//         success: false,
+//         message: `Appointment is already ${appointment.status}`,
+//       });
+//     }
+
+//     // Generate room ID only for video/audio
+//     if (
+//       appointment.consultationType === "video" ||
+//       appointment.consultationType === "audio"
+//     ) {
+//       appointment.roomId = uuidv4();
+//     }
+
+//     appointment.status = "Confirmed";
+//     await appointment.save();
+
+//     await appointment.populate("patient", "name email phone");
+//     await appointment.populate(
+//       "doctor",
+//       "name specialization hospital image consultationFee"
+//     );
+
+//     const acceptedPatient = appointment.patient;
+//     const acceptedDoctor = appointment.doctor;
+
+//     await createAppointmentNotification({
+//       user: acceptedPatient._id,
+//       appointment,
+//       title: "Appointment Accepted",
+//       message:
+//         `${acceptedDoctor?.name || "Your doctor"} has accepted your appointment. ` +
+//         "Your appointment is now confirmed.",
+//       type: "appointment-accepted",
+//     });
+
+//     await sendAppointmentEmail({
+//       to: acceptedPatient.email,
+//       subject: "Appointment Confirmed",
+//       message:
+//         `Hello ${acceptedPatient.name || "Patient"},\n\n` +
+//         `${acceptedDoctor?.name || "Your doctor"} has accepted your appointment.\n\n` +
+//         `Date: ${formatAppointmentDate(appointment.appointmentDate)}\n` +
+//         `Time: ${appointment.appointmentTime}\n` +
+//         `Consultation: ${appointment.consultationType}\n\n` +
+//         "Your appointment is now confirmed.",
+//     });
+
+//     await sendAppointmentSMS({
+//       to: acceptedPatient.phone,
+//       message:
+//         `Dr. Sharma: ${acceptedDoctor?.name || "Your doctor"} accepted your appointment ` +
+//         `for ${formatAppointmentDate(appointment.appointmentDate)} at ${appointment.appointmentTime}.`,
+//     });
+
+//     res.status(200).json({
+//       success: true,
+//       message: "Appointment confirmed successfully",
+//       appointment,
+//     });
+//   } catch (error) {
+//     console.error("Accept Appointment Error:", error);
+//     res.status(500).json({
+//       success: false,
+//       message: error.message,
+//     });
+//   }
+// };
+// =====================================================
+// DOCTOR ACCEPT APPOINTMENT
+// =====================================================
 const acceptAppointment = async (req, res) => {
   try {
     const doctor = await Doctor.findOne({
@@ -933,6 +1031,7 @@ const acceptAppointment = async (req, res) => {
     const acceptedPatient = appointment.patient;
     const acceptedDoctor = appointment.doctor;
 
+    // ========== NOTIFICATION ==========
     await createAppointmentNotification({
       user: acceptedPatient._id,
       appointment,
@@ -943,23 +1042,65 @@ const acceptAppointment = async (req, res) => {
       type: "appointment-accepted",
     });
 
+    // ========== EMAIL WITH ROOM ID ==========
+    const bookingDate = formatAppointmentDate(appointment.appointmentDate);
+    const videoLink = `${process.env.FRONTEND_URL}/consult/${appointment.roomId}?type=video`;
+    const audioNumber = "+919876543210"; // <-- your audio number
+
+    // Email for Patient
+    let patientMessage =
+      `Hello ${acceptedPatient.name || "Patient"},\n\n` +
+      `${acceptedDoctor?.name || "Your doctor"} has accepted your appointment.\n\n` +
+      `Date: ${bookingDate}\n` +
+      `Time: ${appointment.appointmentTime}\n` +
+      `Consultation: ${appointment.consultationType}\n\n`;
+
+    if (appointment.roomId) {
+      patientMessage +=
+        `Video Consult Room ID: ${appointment.roomId}\n` +
+        `Video Join Link: ${videoLink}\n` +
+        `Audio Number: ${audioNumber}\n\n`;
+    }
+
+    patientMessage += "Your appointment is now confirmed. Please join on time.";
+
     await sendAppointmentEmail({
       to: acceptedPatient.email,
-      subject: "Appointment Confirmed",
-      message:
-        `Hello ${acceptedPatient.name || "Patient"},\n\n` +
-        `${acceptedDoctor?.name || "Your doctor"} has accepted your appointment.\n\n` +
-        `Date: ${formatAppointmentDate(appointment.appointmentDate)}\n` +
-        `Time: ${appointment.appointmentTime}\n` +
-        `Consultation: ${appointment.consultationType}\n\n` +
-        "Your appointment is now confirmed.",
+      subject: "Appointment Confirmed - Room Details",
+      message: patientMessage,
     });
 
+    // Email for Doctor
+    let doctorMessage =
+      `Hello ${acceptedDoctor?.name || "Doctor"},\n\n` +
+      `You have confirmed the appointment.\n\n` +
+      `Patient: ${acceptedPatient.name}\n` +
+      `Date: ${bookingDate}\n` +
+      `Time: ${appointment.appointmentTime}\n` +
+      `Consultation: ${appointment.consultationType}\n\n`;
+
+    if (appointment.roomId) {
+      doctorMessage +=
+        `Video Consult Room ID: ${appointment.roomId}\n` +
+        `Video Join Link: ${videoLink}\n` +
+        `Audio Number: ${audioNumber}\n\n`;
+    }
+
+    doctorMessage += "Please join on time.";
+
+    await sendAppointmentEmail({
+      to: acceptedDoctor?.email || doctor.user?.email,
+      subject: "Appointment Confirmed - Room Details",
+      message: doctorMessage,
+    });
+
+    // ========== SMS ==========
     await sendAppointmentSMS({
       to: acceptedPatient.phone,
       message:
         `Dr. Sharma: ${acceptedDoctor?.name || "Your doctor"} accepted your appointment ` +
-        `for ${formatAppointmentDate(appointment.appointmentDate)} at ${appointment.appointmentTime}.`,
+        `for ${bookingDate} at ${appointment.appointmentTime}.` +
+        (appointment.roomId ? ` Room ID: ${appointment.roomId}` : ""),
     });
 
     res.status(200).json({
@@ -975,7 +1116,6 @@ const acceptAppointment = async (req, res) => {
     });
   }
 };
-
 // =====================================================
 // DOCTOR REJECT / CANCEL APPOINTMENT
 // =====================================================
