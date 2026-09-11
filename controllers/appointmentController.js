@@ -1045,7 +1045,7 @@ const acceptAppointment = async (req, res) => {
     // ========== EMAIL WITH ROOM ID ==========
     const bookingDate = formatAppointmentDate(appointment.appointmentDate);
     const videoLink = `${process.env.FRONTEND_URL}/consult/${appointment.roomId}?type=video`;
-    const audioNumber = "+919876543210"; // <-- your audio number
+    const audioNumber = "+918475897982"; // <-- your audio number
 
     // Email for Patient
     let patientMessage =

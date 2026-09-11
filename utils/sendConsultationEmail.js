@@ -18,7 +18,7 @@
 
 // //   const videoLink = `https://dr-frontend-azure.vercel.app/consult/${roomId}?type=video`;
 //   const videoLink = `http://localhost:3000/consult/${roomId}?type=video`;
-//   const audioNumber = "+919876543210"; // your number (no space)
+//   const audioNumber = "+918475897982"; // your number (no space)
 
 //   const emailHTML = (name) => `
 //     <div style="font-family: system-ui, sans-serif, Arial; font-size: 16px;">
@@ -82,7 +82,7 @@ async function sendConsultationEmails({
   const roomId = generateRoomId();
 
   const videoLink = `${process.env.FRONTEND_URL}/consult/${roomId}?type=video`;
-  const audioNumber = "+919876543210"; // your number
+  const audioNumber = "+918475897982"; // your number
 
   const emailHTML = (name) => `
     <div style="font-family: system-ui, sans-serif, Arial; font-size: 16px;">
