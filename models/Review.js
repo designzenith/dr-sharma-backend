@@ -6,15 +6,16 @@ const reviewSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: "Doctor",
       required: true,
+      index: true,
     },
     patient: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: "User", // optional, if you want to link the patient
-    },
-    patientName: {
-      type: String,
+      ref: "User",
       required: true,
-      trim: true,
+    },
+    appointment: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Appointment",
     },
     rating: {
       type: Number,
@@ -22,10 +23,14 @@ const reviewSchema = new mongoose.Schema(
       min: 1,
       max: 5,
     },
-    review: {
+    comment: {
       type: String,
-      required: true,
       trim: true,
+      maxlength: 1000,
+    },
+    isPublic: {
+      type: Boolean,
+      default: true,
     },
   },
   {

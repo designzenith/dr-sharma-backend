@@ -113,7 +113,13 @@ app.use("/api/auth", require("./routes/authRoutes"));
 
 // Doctors
 app.use("/api/doctors", require("./routes/doctorRoutes"));
-
+app.use("/api/earnings", require("./routes/earningsRoutes"));
+// Add this with your other routes
+app.use("/api/reports", require("./routes/reportRoutes"));
+// Add this line with your other routes
+app.use("/api/prescriptions", require("./routes/prescriptionRoutes"));
+// Add this line with your other routes
+app.use("/api/reviews", require("./routes/reviewRoutes"));
 // Patients
 app.use("/api/patients", require("./routes/patientRoutes"));
 
