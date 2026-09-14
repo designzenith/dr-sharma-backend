@@ -43,6 +43,7 @@ connectDB();
 
 const allowedOrigins = [
   "http://localhost:3000",
+  "https://www.irenemedics.com",
   "https://dr-frontend-azure.vercel.app",
 ];
 
@@ -160,7 +161,7 @@ const server = http.createServer(app);
 
 const io = new Server(server, {
   cors: {
-    origin: "http://localhost:3000",
+    origin: ["http://localhost:3000", "https://www.irenemedics.com"],
 
     methods: ["GET", "POST"],
 
