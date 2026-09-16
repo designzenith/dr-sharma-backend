@@ -108,18 +108,35 @@ app.get("/health", (req, res) => {
 // API ROUTES
 // =====================================================
 
+// =====================================================
+// API ROUTES
+// =====================================================
+
 // Authentication
 app.use("/api/auth", require("./routes/authRoutes"));
 
 // Doctors
 app.use("/api/doctors", require("./routes/doctorRoutes"));
 app.use("/api/earnings", require("./routes/earningsRoutes"));
-// Add this with your other routes
+
+// Reports
 app.use("/api/reports", require("./routes/reportRoutes"));
-// Add this line with your other routes
+
+// Prescriptions
 app.use("/api/prescriptions", require("./routes/prescriptionRoutes"));
-// Add this line with your other routes
+
+// Reviews
 app.use("/api/reviews", require("./routes/reviewRoutes"));
+
+// Admin
+const adminRoutes = require("./routes/adminRoutes");
+app.use("/api/admin", adminRoutes)
+
+const couponRoutes = require("./routes/couponRoutes");
+
+app.use("/api/coupons", couponRoutes);
+
+
 // Patients
 app.use("/api/patients", require("./routes/patientRoutes"));
 
@@ -146,9 +163,7 @@ app.use("/api/consult", require("./routes/consult"));
 
 // Upload
 const uploadRoutes = require("./routes/uploadRoutes");
-
 app.use("/api/upload", uploadRoutes);
-
 // =====================================================
 // Static Uploads
 // =====================================================

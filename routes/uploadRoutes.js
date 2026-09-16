@@ -122,6 +122,7 @@ const {
     uploadDoctorDocuments,
     uploadReport,
     getPatientReports,
+    getPatientReportsForDoctor,
 } = require("../controllers/uploadController");
 
 const auth = require("../middleware/auth");
@@ -205,5 +206,14 @@ router.get(
     auth,
     getPatientReports
 );
+// ======================================
+// Doctor - Patient Reports
+// ======================================
 
+// GET /api/upload/doctor/patient/:patientId/reports
+router.get(
+  "/doctor/patient/:patientId/reports",
+  auth,
+  getPatientReportsForDoctor
+);
 module.exports = router;

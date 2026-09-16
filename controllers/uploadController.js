@@ -216,11 +216,80 @@ const getPatientReports = async (req, res) => {
     });
   }
 };
+// ======================================
+// Get Patient Reports for Doctor
+// ======================================
+const getPatientReportsForDoctor = async (req, res) => {
+  try {
+    const { patientId } = req.params;
 
+    if (!patientId) {
+      return res.status(400).json({
+        success: false,
+        message: "Patient ID is required",
+      });
+    }
+
+    // Make sure logged-in user is a doctor
+    const doctor = await Doctor.findOne({
+      user: req.user._id,
+    });
+
+    if (!doctor) {
+      return res.status(403).json({
+        success: false,
+        message: "Only doctors can access patient reports",
+      });
+    }
+
+    const patient = await User.findById(patientId).select(
+      "name email phone profileImage role"
+    );
+
+    if (!patient) {
+      return res.status(404).json({
+        success: false,
+        message: "Patient not found",
+      });
+    }
+
+    if (patient.role !== "patient") {
+      return res.status(400).json({
+        success: false,
+        message: "Selected user is not a patient",
+      });
+    }
+
+    const reports = await Report.find({
+      patient: patientId,
+    }).sort({
+      createdAt: -1,
+    });
+
+    return res.status(200).json({
+      success: true,
+      count: reports.length,
+      patient,
+      reports,
+    });
+  } catch (error) {
+    console.error(
+      "Get Patient Reports For Doctor Error:",
+      error
+    );
+
+    return res.status(500).json({
+      success: false,
+      message:
+        error.message || "Failed to load patient reports",
+    });
+  }
+};
 module.exports = {
   uploadProfileImage,
   uploadDoctorDocuments,
   uploadDoctorImage,
   uploadReport,
   getPatientReports,
+  getPatientReportsForDoctor,
 };

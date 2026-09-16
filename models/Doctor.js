@@ -7,7 +7,7 @@ const mongoose = require("mongoose");
 const doctorSchema = new mongoose.Schema(
   {
     // =====================================================
-    // Linked User Account  
+    // Linked User Account
     // =====================================================
 
     user: {
@@ -129,7 +129,22 @@ const doctorSchema = new mongoose.Schema(
     // =====================================================
     // Availability
     // =====================================================
+    verificationStatus: {
+      type: String,
+      enum: ["Pending", "Verified", "Rejected"],
+      default: "Pending",
+    },
 
+    verificationReason: {
+      type: String,
+      default: "",
+      trim: true,
+    },
+
+    verifiedAt: {
+      type: Date,
+      default: null,
+    },
     available: {
       type: Boolean,
       default: true,
@@ -137,15 +152,11 @@ const doctorSchema = new mongoose.Schema(
   },
   {
     timestamps: true,
-  }
+  },
 );
 
 // =====================================================
 // Export Doctor Model
 // =====================================================
 
-module.exports =
-  mongoose.model(
-    "Doctor",
-    doctorSchema
-  );
+module.exports = mongoose.model("Doctor", doctorSchema);

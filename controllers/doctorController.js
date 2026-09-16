@@ -708,6 +708,83 @@ const getSpecializations = async (
 };
 
 // =====================================================
+// Admin: Verify Doctor
+// =====================================================
+
+const verifyDoctor = async (req, res) => {
+  try {
+    const doctor = await Doctor.findById(req.params.id);
+
+    if (!doctor) {
+      return res.status(404).json({
+        success: false,
+        message: "Doctor not found",
+      });
+    }
+
+    doctor.verificationStatus = "Verified";
+    doctor.verificationReason = "";
+    doctor.verifiedAt = new Date();
+
+    await doctor.save();
+
+    await doctor.populate("user", "name email phone");
+
+    return res.status(200).json({
+      success: true,
+      message: "Doctor verified successfully",
+      doctor,
+    });
+  } catch (error) {
+    console.error("Verify Doctor Error:", error);
+
+    return res.status(500).json({
+      success: false,
+      message: error.message,
+    });
+  }
+};
+
+
+// =====================================================
+// Admin: Reject Doctor
+// =====================================================
+
+const rejectDoctor = async (req, res) => {
+  try {
+    const doctor = await Doctor.findById(req.params.id);
+
+    if (!doctor) {
+      return res.status(404).json({
+        success: false,
+        message: "Doctor not found",
+      });
+    }
+
+    doctor.verificationStatus = "Rejected";
+    doctor.verificationReason =
+      req.body.reason || "Doctor verification rejected";
+    doctor.verifiedAt = null;
+
+    await doctor.save();
+
+    await doctor.populate("user", "name email phone");
+
+    return res.status(200).json({
+      success: true,
+      message: "Doctor rejected successfully",
+      doctor,
+    });
+  } catch (error) {
+    console.error("Reject Doctor Error:", error);
+
+    return res.status(500).json({
+      success: false,
+      message: error.message,
+    });
+  }
+};
+// =====================================================
 // EXPORT
 // =====================================================
 
@@ -730,4 +807,6 @@ module.exports = {
   updateConsultationType,
   deleteDoctor,
   getSpecializations,
+   verifyDoctor,
+  rejectDoctor,
 };

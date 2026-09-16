@@ -109,9 +109,9 @@ const appointmentSchema = new mongoose.Schema(
       type: String,
       enum: [
         "Pending Payment", // video / audio → waiting for payment
-        "Pending",         // waiting for doctor approval
-        "Confirmed",       // doctor accepted
-        "In Progress",     // consultation started
+        "Pending", // waiting for doctor approval
+        "Confirmed", // doctor accepted
+        "In Progress", // consultation started
         "Completed",
         "Cancelled",
       ],
@@ -125,6 +125,31 @@ const appointmentSchema = new mongoose.Schema(
     consultationFee: {
       type: Number,
       default: 0,
+    },
+
+    originalAmount: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
+
+    discountAmount: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
+
+    finalAmount: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
+
+    couponCode: {
+      type: String,
+      default: null,
+      trim: true,
+      uppercase: true,
     },
 
     paymentStatus: {
@@ -182,7 +207,7 @@ const appointmentSchema = new mongoose.Schema(
   },
   {
     timestamps: true,
-  }
+  },
 );
 
 // ==========================================
