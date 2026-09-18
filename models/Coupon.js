@@ -6,7 +6,10 @@ const mongoose = require("mongoose");
 
 const couponSchema = new mongoose.Schema(
   {
-    // Coupon Code
+    // ===================================================
+    // COUPON CODE
+    // ===================================================
+
     code: {
       type: String,
       required: true,
@@ -15,55 +18,99 @@ const couponSchema = new mongoose.Schema(
       trim: true,
     },
 
-    // Discount Type
+    // ===================================================
+    // COUPON TYPE
+    // ===================================================
+
+    couponType: {
+      type: String,
+      enum: ["NewUser", "Festival", "General"],
+      default: "General",
+    },
+
+    // ===================================================
+    // COUPON DESCRIPTION
+    // ===================================================
+
+    description: {
+      type: String,
+      default: "",
+      trim: true,
+    },
+
+    // ===================================================
+    // DISCOUNT TYPE
+    // ===================================================
+
     discountType: {
       type: String,
       enum: ["Percentage", "Fixed"],
       required: true,
     },
 
-    // Discount Value
+    // ===================================================
+    // DISCOUNT VALUE
+    // ===================================================
+
     discount: {
       type: Number,
       required: true,
       min: 0,
     },
 
-    // Minimum Appointment Amount
+    // ===================================================
+    // MINIMUM APPOINTMENT AMOUNT
+    // ===================================================
+
     minAmount: {
       type: Number,
       default: 0,
       min: 0,
     },
 
-    // Maximum Discount
+    // ===================================================
+    // MAXIMUM DISCOUNT
+    // ===================================================
+
     maxDiscount: {
       type: Number,
       default: 0,
       min: 0,
     },
 
-    // Maximum Usage
+    // ===================================================
+    // MAXIMUM TOTAL USAGE
+    // ===================================================
+
     usageLimit: {
       type: Number,
       default: 0,
       min: 0,
     },
 
-    // Used Count
+    // ===================================================
+    // TOTAL USED COUNT
+    // ===================================================
+
     usedCount: {
       type: Number,
       default: 0,
       min: 0,
     },
 
-    // Expiry Date
+    // ===================================================
+    // EXPIRY DATE
+    // ===================================================
+
     expiryDate: {
       type: Date,
       required: true,
     },
 
-    // Status
+    // ===================================================
+    // STATUS
+    // ===================================================
+
     status: {
       type: String,
       enum: ["Active", "Expired", "Inactive"],
