@@ -53,171 +53,112 @@ const getProfile = async (req, res) => {
 // ======================================
 const updateProfile = async (req, res) => {
   try {
-    const {
-      name,
-      phone,
-      email,
-      age,
-      gender,
-      bloodGroup,
-      address,
-      city,
-      state,
-    } = req.body;
+    const { name, phone, email, age, gender, bloodGroup, address, city, state } =
+      req.body;
 
-    // --------------------------------------
-    // Update basic User information
-    // --------------------------------------
-    const user = await User.findByIdAndUpdate(
-      req.user._id,
-      {
-        ...(name !== undefined && { name: name.trim() }),
-        ...(phone !== undefined && { phone: phone.trim() }),
-        ...(email !== undefined && { email: email.trim().toLowerCase() }),
-      },
-      {
-        new: true,
-        runValidators: true,
-      },
-    ).select("-password");
+    // ---------------------------------------------
+    // Get logged-in user
+    // ---------------------------------------------
+    const user = await User.findById(req.user._id);
 
     if (!user) {
       return res.status(404).json({
         success: false,
-        message: "User not found",
+        message: "User not found.",
       });
     }
 
-    // --------------------------------------
-    // Patient profile
-    // --------------------------------------
-    // if (user.role === "patient") {
-    //   const patient = await Patient.findOneAndUpdate(
-    //     {
-    //       user: user._id,
-    //     },
-    //     {
-    //       ...(name !== undefined && { name: name.trim() }),
-    //       ...(email !== undefined && {
-    //         email: email.trim().toLowerCase(),
-    //       }),
-    //       ...(phone !== undefined && { phone: phone.trim() }),
-    //       ...(gender !== undefined && { gender }),
-    //       ...(bloodGroup !== undefined && { bloodGroup }),
-    //       ...(address !== undefined && { address: address.trim() }),
-    //       ...(city !== undefined && { city: city.trim() }),
-    //       ...(state !== undefined && { state: state.trim() }),
-    //     },
-    //     {
-    //       new: true,
-    //       runValidators: true,
-    //     }
-    //   );
+    // ---------------------------------------------
+    // Update User basic information
+    // ---------------------------------------------
+    user.name = name ?? user.name;
+    user.phone = phone ?? user.phone;
+    user.email = email ?? user.email;
 
-    //   if (!patient) {
-    //     return res.status(404).json({
-    //       success: false,
-    //       message:
-    //         "Patient profile not found. Please create a patient profile first.",
-    //     });
-    //   }
+    await user.save();
 
-    //   return res.json({
-    //     success: true,
-    //     message: "Patient profile updated successfully",
-    //     user,
-    //     profile: patient,
-    //   });
-    // }
+    // ---------------------------------------------
+    // PATIENT PROFILE
+    // ---------------------------------------------
     if (user.role === "patient") {
+      const patientData = {
+        user: user._id,
+        name: name ?? user.name,
+        email: email ?? user.email,
+        phone: phone ?? user.phone,
+        age: age !== undefined ? age : undefined,
+        gender: gender ?? "",
+        bloodGroup: bloodGroup ?? "",
+        address: address ?? "",
+        city: city ?? "",
+        state: state ?? "",
+      };
+
       const patient = await Patient.findOneAndUpdate(
-        {
-          user: user._id,
-        },
-        {
-          ...(name !== undefined && { name: name.trim() }),
-          ...(email !== undefined && {
-            email: email.trim().toLowerCase(),
-          }),
-          ...(phone !== undefined && {
-            phone: phone.trim(),
-          }),
-          ...(gender !== undefined && { gender }),
-          ...(bloodGroup !== undefined && { bloodGroup }),
-          ...(address !== undefined && {
-            address: address.trim(),
-          }),
-          ...(city !== undefined && {
-            city: city.trim(),
-          }),
-          ...(state !== undefined && {
-            state: state.trim(),
-          }),
-        },
+        { user: user._id },
+        { $set: patientData },
         {
           new: true,
+          upsert: true,
           runValidators: true,
-        },
+          setDefaultsOnInsert: true,
+        }
       );
 
-      if (!patient) {
-        return res.status(404).json({
-          success: false,
-          message: "Patient profile not found.",
-        });
-      }
-
-      return res.json({
+      return res.status(200).json({
         success: true,
-        message: "Patient profile updated successfully",
+        message: "Patient profile updated successfully.",
         user,
         profile: patient,
       });
     }
 
-    // --------------------------------------
-    // Doctor profile
-    // --------------------------------------
+    // ---------------------------------------------
+    // DOCTOR
+    // ---------------------------------------------
     if (user.role === "doctor") {
       const doctor = await Doctor.findOneAndUpdate(
+        { user: user._id },
         {
-          user: user._id,
-        },
-        {
-          ...(name !== undefined && { name: name.trim() }),
-          ...(email !== undefined && {
-            email: email.trim().toLowerCase(),
-          }),
-          ...(phone !== undefined && { phone: phone.trim() }),
+          $set: {
+            name: name ?? user.name,
+            email: email ?? user.email,
+            phone: phone ?? user.phone,
+          },
         },
         {
           new: true,
           runValidators: true,
-        },
+        }
       );
 
-      return res.json({
+      return res.status(200).json({
         success: true,
-        message: "Doctor profile updated successfully",
+        message: "Doctor profile updated successfully.",
         user,
         profile: doctor,
       });
     }
 
-    // --------------------------------------
-    // Admin / other
-    // --------------------------------------
-    return res.json({
+    return res.status(200).json({
       success: true,
-      message: "Profile updated successfully",
+      message: "Profile updated successfully.",
       user,
     });
   } catch (error) {
     console.error("UPDATE PROFILE ERROR:", error);
 
+    // Duplicate email
+    if (error.code === 11000) {
+      return res.status(400).json({
+        success: false,
+        message: "Email already exists.",
+      });
+    }
+
     return res.status(500).json({
       success: false,
-      message: error.message,
+      message: error.message || "Failed to update profile.",
     });
   }
 };
