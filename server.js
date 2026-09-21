@@ -130,12 +130,15 @@ app.use("/api/reviews", require("./routes/reviewRoutes"));
 
 // Admin
 const adminRoutes = require("./routes/adminRoutes");
-app.use("/api/admin", adminRoutes)
+app.use("/api/admin", adminRoutes);
 
 const couponRoutes = require("./routes/couponRoutes");
 
 app.use("/api/coupons", couponRoutes);
 
+const questionRoutes = require("./routes/questionRoutes");
+
+app.use("/api/admin/questions", questionRoutes);
 
 // Patients
 app.use("/api/patients", require("./routes/patientRoutes"));
