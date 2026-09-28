@@ -8,7 +8,7 @@ const adminAuth = require("../middleware/adminAuth");
 const {
   bookAppointment,
   getAppointmentById,
-  createPayuPayment,
+  createCashfreePayment,
   markAppointmentPaid,
   patientAppointments,
   getMyPatientAppointments,
@@ -81,7 +81,7 @@ router.get("/room/:roomId", auth, getAppointmentByRoom);
 // =====================================================
 
 // Create PayU payment
-router.post("/:id/create-payu", auth, createPayuPayment);
+router.post("/:id/create-cashfree", auth, createCashfreePayment);
 
 // Mark appointment as paid
 router.patch("/:id/pay", auth, markAppointmentPaid);

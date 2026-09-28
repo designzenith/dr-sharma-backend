@@ -938,22 +938,20 @@ const getAppointmentById = async (req, res) => {
 
 // =====================================================
 
-// CREATE PAYU PAYMENT
-
+// =====================================================
+// CREATE CASHFREE PAYMENT
 // =====================================================
 
-const createPayuPayment = async (req, res) => {
+const createCashfreePayment = async (req, res) => {
   try {
     const appointment = await Appointment.findOne({
       _id: req.params.id,
-
       patient: req.user._id,
     }).populate("doctor", "name consultationFee");
 
     if (!appointment) {
       return res.status(404).json({
         success: false,
-
         message: "Appointment not found",
       });
     }
@@ -961,22 +959,19 @@ const createPayuPayment = async (req, res) => {
     if (appointment.status !== "Pending Payment") {
       return res.status(400).json({
         success: false,
-
         message: "This appointment is not eligible for payment",
       });
     }
 
-    // ========== PAYU CREDENTIALS ==========
+    // ========== CASHFREE CREDENTIALS ==========
+    const appId = process.env.CASHFREE_APP_ID;
+    const secretKey = process.env.CASHFREE_SECRET_KEY;
+    const env = process.env.CASHFREE_ENV || "TEST"; // TEST or PROD
 
-    const key = process.env.PAYU_MERCHANT_KEY;
-
-    const salt = process.env.PAYU_MERCHANT_SALT;
-
-    if (!key || !salt) {
+    if (!appId || !secretKey) {
       return res.status(500).json({
         success: false,
-
-        message: "PayU credentials not configured",
+        message: "Cashfree credentials not configured",
       });
     }
 
@@ -985,108 +980,122 @@ const createPayuPayment = async (req, res) => {
         appointment.consultationFee ??
         appointment.doctor?.consultationFee ??
         0,
-    ).toFixed(2); // IMPORTANT: must be string with 2 decimals
+    ).toFixed(2);
 
-    const txnid = `TXN${appointment._id.toString().slice(-8)}${Date.now()}`;
+    if (Number(amount) <= 0) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid payment amount",
+      });
+    }
 
-    const productinfo = "Doctor Consultation";
+    // Unique order ID for Cashfree
+    const orderId = `APPT_${appointment._id.toString().slice(-8)}_${Date.now()}`;
 
-    const firstname = (req.user.name || "Patient").replace(
+    const customerName = (req.user.name || "Patient").replace(
       /[^a-zA-Z0-9 ]/g,
       "",
     );
-
-    const email = req.user.email || "patient@example.com";
-
-    const phone = (req.user.phone || "9999999999")
+    const customerEmail = req.user.email || "patient@example.com";
+    const customerPhone = (req.user.phone || "9999999999")
       .toString()
       .replace(/\D/g, "")
       .slice(-10);
 
-    const surl = `${process.env.FRONTEND_URL}/payment/success`;
+    const apiBase =
+      env === "PROD"
+        ? "https://api.cashfree.com/pg"
+        : "https://sandbox.cashfree.com/pg";
 
-    const furl = `${process.env.FRONTEND_URL}/payment/failure`;
+    const payload = {
+      order_id: orderId,
+      order_amount: Number(amount),
+      order_currency: "INR",
+      customer_details: {
+        customer_id: req.user._id.toString(),
+        customer_name: customerName,
+        customer_email: customerEmail,
+        customer_phone: customerPhone,
+      },
+      order_meta: {
+        return_url: `${process.env.FRONTEND_URL}/payment/success?order_id={order_id}&appointment_id=${appointment._id}`,
+        notify_url: `${process.env.BACKEND_URL}/api/appointments/webhook/cashfree`, // change path if needed
+      },
+      order_note: `Doctor Consultation - ${appointment.doctor?.name || "Doctor"}`,
+    };
 
-    // ========== CORRECT HASH ==========
+    const axios = require("axios"); // make sure axios is installed
+    console.log("========== CASHFREE DEBUG ==========");
+    console.log("App ID exists:", !!process.env.CASHFREE_APP_ID);
+    console.log("Secret exists:", !!process.env.CASHFREE_SECRET_KEY);
+    console.log(
+      "Secret prefix:",
+      process.env.CASHFREE_SECRET_KEY?.substring(0, 8),
+    );
+    console.log("Environment:", process.env.CASHFREE_ENV);
+    console.log("API Base:", apiBase);
+    console.log("====================================");
+    console.log("Payload order_id:", orderId);
+    console.log("Amount:", amount);
+    const response = await axios.post(`${apiBase}/orders`, payload, {
+      headers: {
+        "x-client-id": appId,
+        "x-client-secret": secretKey,
+        "x-api-version": "2025-01-01",
+        "Content-Type": "application/json",
+      },
+    });
 
-    // Sequence: key|txnid|amount|productinfo|firstname|email|||||||||||salt
+    const cashfreeOrder = response.data;
 
-    const hashString = `${key}|${txnid}|${amount}|${productinfo}|${firstname}|${email}|||||||||||${salt}`;
-
-    const hash = crypto
-
-      .createHash("sha512")
-
-      .update(hashString)
-
-      .digest("hex");
-
-    // Save txnid
-
-    appointment.paymentId = txnid;
-
+    // Save Cashfree order_id in appointment
+    appointment.paymentId = cashfreeOrder.order_id;
     await appointment.save();
-
-    console.log("PayU Hash String →", hashString); // for debugging
-
-    console.log("PayU Hash →", hash);
 
     return res.status(200).json({
       success: true,
-
       paymentData: {
-        key,
-
-        txnid,
-
-        amount,
-
-        productinfo,
-
-        firstname,
-
-        email,
-
-        phone,
-
-        surl,
-
-        furl,
-
-        hash,
-
-        service_provider: "payu_paisa",
+        order_id: cashfreeOrder.order_id,
+        payment_session_id: cashfreeOrder.payment_session_id,
+        order_amount: cashfreeOrder.order_amount,
+        order_currency: cashfreeOrder.order_currency,
+        env: env === "PROD" ? "production" : "sandbox",
       },
     });
   } catch (error) {
-    console.error("Create PayU Payment Error:", error);
+    console.error("========== CASHFREE ERROR ==========");
+    console.error("Status:", error.response?.status);
+    console.error("Data:", error.response?.data);
+    console.error("Message:", error.message);
+    console.error("====================================");
 
-    return res.status(500).json({
+    return res.status(error.response?.status || 500).json({
       success: false,
-
-      message: error.message,
+      message:
+        error.response?.data?.message ||
+        error.response?.data?.error_description ||
+        error.message ||
+        "Cashfree payment failed",
+      cashfreeError: error.response?.data || null,
     });
   }
 };
 
 // =====================================================
-
 // MARK APPOINTMENT AS PAID (Video / Audio)
-
+// (Still useful for frontend success page)
 // =====================================================
 
 const markAppointmentPaid = async (req, res) => {
   try {
     const appointment = await Appointment.findOne({
       _id: req.params.id,
-
       patient: req.user._id,
     });
 
     if (!appointment) {
       return res.status(404).json({
         success: false,
-
         message: "Appointment not found",
       });
     }
@@ -1094,33 +1103,27 @@ const markAppointmentPaid = async (req, res) => {
     if (appointment.status !== "Pending Payment") {
       return res.status(400).json({
         success: false,
-
         message: `Cannot mark as paid. Current status: ${appointment.status}`,
       });
     }
 
-    // Update status after successful payment
+    // Optional: Verify with Cashfree before marking paid (recommended)
+    // You can call Cashfree getOrder API here if you want extra safety
 
     appointment.status = "Pending"; // now waiting for doctor approval
-
     appointment.paymentStatus = "paid";
-
     appointment.paymentId = req.body.paymentId || appointment.paymentId || null;
-
     appointment.paidAt = new Date();
 
     await appointment.save();
 
-    // Count the coupon only after successful payment.
-
+    // Count the coupon only after successful payment
     if (appointment.couponCode) {
       await incrementCouponUsage(appointment.couponCode);
     }
 
     // Notify doctor now (after payment)
-
     const doctorProfile = await Doctor.findById(appointment.doctor);
-
     const patientUser = await User.findById(appointment.patient).select(
       "name email phone",
     );
@@ -1128,42 +1131,28 @@ const markAppointmentPaid = async (req, res) => {
     if (doctorProfile?.user) {
       await createAppointmentNotification({
         user: doctorProfile.user,
-
         appointment,
-
         title: "New Paid Appointment Request",
-
         message: `${
           patientUser?.name || "A patient"
         } has paid and requested an appointment.`,
-
         type: "appointment-booked",
       });
     }
 
     const populated = await Appointment.findById(appointment._id)
-
-      .populate(
-        "doctor",
-
-        "name specialization hospital image consultationFee",
-      )
-
+      .populate("doctor", "name specialization hospital image consultationFee")
       .populate("patient", "name email phone");
 
     return res.status(200).json({
       success: true,
-
       message: "Payment successful. Waiting for doctor approval.",
-
       appointment: populated,
     });
   } catch (error) {
     console.error("Mark Paid Error:", error);
-
     return res.status(500).json({
       success: false,
-
       message: error.message,
     });
   }
@@ -2390,7 +2379,7 @@ module.exports = {
 
   getAppointmentById,
 
-  createPayuPayment,
+  createCashfreePayment,
 
   markAppointmentPaid,
 
