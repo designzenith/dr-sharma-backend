@@ -151,7 +151,9 @@ require("./jobs/reminderJob");
 
 // Appointments
 app.use("/api/appointments", require("./routes/appointmentRoutes"));
-
+// cashfreePaymentRoutes
+const cashfreePaymentRoutes = require("./routes/cashfreePaymentRoutes");
+app.use("/api/cashfree", cashfreePaymentRoutes);
 // Schedule
 app.use("/api/schedule", require("./routes/scheduleRoutes"));
 
