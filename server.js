@@ -150,7 +150,9 @@ app.use("/api/notifications", require("./routes/notificationRoutes"));
 require("./jobs/reminderJob");
 
 // Appointments
-app.use("/api/appointments", require("./routes/appointmentRoutes"));
+const appointmentRoutes = require("./routes/appointmentRoutes"); // path check karo
+
+app.use("/api/appointments", appointmentRoutes);
 // cashfreePaymentRoutes
 const cashfreePaymentRoutes = require("./routes/cashfreePaymentRoutes");
 app.use("/api/cashfree", cashfreePaymentRoutes);

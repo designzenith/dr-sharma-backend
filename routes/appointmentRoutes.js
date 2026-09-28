@@ -1,3 +1,4 @@
+const Appointment = require("../models/Appointment"); // path check kar lena
 const express = require("express");
 const router = express.Router();
 
@@ -54,5 +55,42 @@ router.get("/room/:roomId", auth, getAppointmentByRoom);
 // =====================================================
 router.get("/:id", auth, getAppointmentById);
 router.put("/:id", auth, updateAppointment);
+// Mark appointment as paid after successful payment
+router.post("/:id/mark-paid", auth, async (req, res) => {
+  try {
+    const appointmentId = req.params.id;
+    const { paymentId } = req.body;
 
+    // Appointment find karo
+    const appointment = await Appointment.findById(appointmentId);
+
+    if (!appointment) {
+      return res.status(404).json({
+        success: false,
+        message: "Appointment not found",
+      });
+    }
+
+    // Update status
+    appointment.paymentStatus = "paid";
+    appointment.status = "Pending"; // doctor approval ke liye
+    if (paymentId) {
+      appointment.paymentId = paymentId; // agar field exist karti hai
+    }
+
+    await appointment.save();
+
+    return res.status(200).json({
+      success: true,
+      message: "Payment marked as successful",
+      appointment,
+    });
+  } catch (error) {
+    console.error("mark-paid error:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to update payment status",
+    });
+  }
+});
 module.exports = router;
