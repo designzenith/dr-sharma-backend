@@ -243,6 +243,7 @@ const verifyCashfreePayment = async (req, res) => {
     if (!orderId) {
       return res.status(400).json({
         success: false,
+        paymentStatus: "FAILED",
         message: "orderId is required",
       });
     }
@@ -254,22 +255,17 @@ const verifyCashfreePayment = async (req, res) => {
     if (!appId || !secretKey) {
       return res.status(500).json({
         success: false,
+        paymentStatus: "FAILED",
         message: "Cashfree credentials missing",
       });
     }
-    console.log("========== CASHFREE KEYS DEBUG ==========");
-    console.log("Env:", env);
-    console.log("App ID:", appId);
-    console.log("Secret (first 15):", secretKey?.substring(0, 15));
-    console.log("App ID length:", appId?.length);
-    console.log("Secret length:", secretKey?.length);
-    console.log("=========================================");
+
     const apiBase =
       env === "PROD"
         ? "https://api.cashfree.com/pg"
         : "https://sandbox.cashfree.com/pg";
 
-    // Get order details from Cashfree
+    // 1. Get Order
     const orderResponse = await axios.get(`${apiBase}/orders/${orderId}`, {
       headers: {
         "x-client-id": appId,
@@ -282,7 +278,7 @@ const verifyCashfreePayment = async (req, res) => {
 
     const orderData = orderResponse.data;
 
-    // Get payments for this order
+    // 2. Get Payments
     const paymentsResponse = await axios.get(
       `${apiBase}/orders/${orderId}/payments`,
       {
@@ -293,82 +289,108 @@ const verifyCashfreePayment = async (req, res) => {
           Accept: "application/json",
         },
         timeout: 20000,
-      },
+      }
     );
 
-    const payments = paymentsResponse.data || [];
+    const payments = Array.isArray(paymentsResponse.data)
+      ? paymentsResponse.data
+      : [];
+
     const successfulPayment = payments.find(
-      (p) => p.payment_status === "SUCCESS",
+      (p) => p.payment_status === "SUCCESS"
     );
+    const latestPayment = payments[0] || null;
 
-    if (!successfulPayment) {
-      return res.status(400).json({
-        success: false,
-        message: "Payment not successful yet",
-        order_status: orderData.order_status,
-        payments,
+    // ========== CASE 1: SUCCESS ==========
+    if (successfulPayment) {
+      const appointment = await Appointment.findOne({
+        $or: [{ paymentId: orderId }, { _id: appointmentId }],
+        patient: req.user._id,
       });
-    }
 
-    // Find appointment
-    const appointment = await Appointment.findOne({
-      $or: [{ paymentId: orderId }, { _id: appointmentId }],
-      patient: req.user._id,
-    });
+      if (!appointment) {
+        return res.status(404).json({
+          success: false,
+          paymentStatus: "FAILED",
+          message: "Appointment not found for this payment",
+        });
+      }
 
-    if (!appointment) {
-      return res.status(404).json({
-        success: false,
-        message: "Appointment not found for this payment",
-      });
-    }
+      // Already paid
+      if (appointment.paymentStatus === "paid") {
+        return res.status(200).json({
+          success: true,
+          paymentStatus: "SUCCESS",
+          message: "Payment already verified",
+          appointment,
+        });
+      }
 
-    // Already paid?
-    if (appointment.paymentStatus === "paid") {
+      // Mark as paid
+      appointment.status = "Pending";
+      appointment.paymentStatus = "paid";
+      appointment.paymentId = orderId;
+      appointment.paidAt = new Date();
+      await appointment.save();
+
+      // Coupon
+      if (appointment.couponCode) {
+        await incrementCouponUsage(appointment.couponCode);
+      }
+
+      // Notify doctor
+      const doctorProfile = await Doctor.findById(appointment.doctor);
+      const patientUser = await User.findById(appointment.patient).select("name");
+
+      if (doctorProfile?.user) {
+        await createNotification({
+          user: doctorProfile.user,
+          appointment,
+          title: "New Paid Appointment Request",
+          message: `${patientUser?.name || "A patient"} has paid and requested an appointment.`,
+          type: "appointment-booked",
+        });
+      }
+
+      const populated = await Appointment.findById(appointment._id)
+        .populate("doctor", "name specialization hospital image consultationFee")
+        .populate("patient", "name email phone");
+
       return res.status(200).json({
         success: true,
-        message: "Payment already verified",
-        appointment,
+        paymentStatus: "SUCCESS",
+        message: "Payment verified successfully. Waiting for doctor approval.",
+        appointment: populated,
       });
     }
 
-    // Mark as paid
-    appointment.status = "Pending"; // waiting for doctor approval
-    appointment.paymentStatus = "paid";
-    appointment.paymentId = orderId;
-    appointment.paidAt = new Date();
-    await appointment.save();
+    // ========== CASE 2: NOT SUCCESS ==========
+    let paymentStatus = "FAILED";
+    let message = "Payment failed or was cancelled.";
 
-    // Coupon usage
-    if (appointment.couponCode) {
-      await incrementCouponUsage(appointment.couponCode);
+    if (latestPayment) {
+      paymentStatus = latestPayment.payment_status; // FAILED, USER_DROPPED, PENDING, etc.
+
+      message =
+        latestPayment.payment_message ||
+        latestPayment.error_details?.error_description ||
+        latestPayment.error_details?.message ||
+        `Payment ${paymentStatus.toLowerCase()}`;
+    } else {
+      // No payment attempt found
+      paymentStatus =
+        orderData.order_status === "ACTIVE" ? "PENDING" : "FAILED";
+      message =
+        orderData.order_status === "ACTIVE"
+          ? "Payment is still pending."
+          : "No payment attempt found.";
     }
-
-    // Notify doctor
-    const doctorProfile = await Doctor.findById(appointment.doctor);
-    const patientUser = await User.findById(appointment.patient).select(
-      "name email phone",
-    );
-
-    if (doctorProfile?.user) {
-      await createNotification({
-        user: doctorProfile.user,
-        appointment,
-        title: "New Paid Appointment Request",
-        message: `${patientUser?.name || "A patient"} has paid and requested an appointment.`,
-        type: "appointment-booked",
-      });
-    }
-
-    const populated = await Appointment.findById(appointment._id)
-      .populate("doctor", "name specialization hospital image consultationFee")
-      .populate("patient", "name email phone");
 
     return res.status(200).json({
-      success: true,
-      message: "Payment verified successfully. Waiting for doctor approval.",
-      appointment: populated,
-      payment: successfulPayment,
+      success: false,
+      paymentStatus, // FAILED | USER_DROPPED | PENDING | CANCELLED
+      message,
+      order_status: orderData.order_status,
     });
   } catch (error) {
     console.error("========== VERIFY PAYMENT ERROR ==========");
@@ -377,6 +399,7 @@ const verifyCashfreePayment = async (req, res) => {
 
     return res.status(error.response?.status || 500).json({
       success: false,
+      paymentStatus: "FAILED",
       message:
         error.response?.data?.message ||
         error.message ||
@@ -384,7 +407,6 @@ const verifyCashfreePayment = async (req, res) => {
     });
   }
 };
-
 // =====================================================
 // 3. WEBHOOK (Cashfree → Backend)
 // =====================================================
