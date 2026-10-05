@@ -75,16 +75,6 @@ const doctorSchema = new mongoose.Schema(
       default: 0,
     },
 
-    // Doctor can provide one or multiple
-    // consultation types
-    //
-    // Examples:
-    // ["video"]
-    // ["audio"]
-    // ["clinic"]
-    // ["video", "audio"]
-    // ["video", "audio", "clinic"]
-
     consultationType: {
       type: [String],
       enum: ["video", "audio", "clinic"],
@@ -118,6 +108,26 @@ const doctorSchema = new mongoose.Schema(
     },
 
     // =====================================================
+    // Doctor Certificates
+    // =====================================================
+
+    certificates: [
+      {
+        title: {
+          type: String,
+          trim: true,
+          default: "",
+        },
+
+        image: {
+          type: String,
+          trim: true,
+          default: "",
+        },
+      },
+    ],
+
+    // =====================================================
     // Profile Image
     // =====================================================
 
@@ -127,8 +137,9 @@ const doctorSchema = new mongoose.Schema(
     },
 
     // =====================================================
-    // Availability
+    // Verification
     // =====================================================
+
     verificationStatus: {
       type: String,
       enum: ["Pending", "Verified", "Rejected"],
@@ -145,6 +156,11 @@ const doctorSchema = new mongoose.Schema(
       type: Date,
       default: null,
     },
+
+    // =====================================================
+    // Availability
+    // =====================================================
+
     available: {
       type: Boolean,
       default: true,
@@ -152,7 +168,7 @@ const doctorSchema = new mongoose.Schema(
   },
   {
     timestamps: true,
-  },
+  }
 );
 
 // =====================================================

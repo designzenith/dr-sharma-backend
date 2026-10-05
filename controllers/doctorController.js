@@ -318,18 +318,14 @@ const getMyDoctorProfile = async (
 // Update Doctor
 // =====================================================
 
-const updateDoctor = async (
-  req,
-  res
-) => {
+const updateDoctor = async (req, res) => {
   try {
     const userId = getUserId(req);
 
     if (!userId) {
       return res.status(401).json({
         success: false,
-        message:
-          "User ID not found. Please login again.",
+        message: "User ID not found. Please login again.",
       });
     }
 
@@ -348,171 +344,84 @@ const updateDoctor = async (
       image,
       consultationType,
       available,
+      certificates, // ← Added this
     } = req.body;
 
-    // -------------------------------------------------
     // Find doctor
-    // -------------------------------------------------
+    let doctor = await Doctor.findOne({ user: userId });
 
-    let doctor =
-      await Doctor.findOne({
-        user: userId,
-      });
-
-    // -------------------------------------------------
     // Create if missing
-    // -------------------------------------------------
-
     if (!doctor) {
-      doctor = new Doctor({
-        user: userId,
-      });
+      doctor = new Doctor({ user: userId });
     }
 
-    // -------------------------------------------------
     // Basic Details
-    // -------------------------------------------------
+    if (name !== undefined) doctor.name = name;
+    if (email !== undefined) doctor.email = email.toLowerCase();
+    if (phone !== undefined) doctor.phone = phone;
 
-    if (name !== undefined) {
-      doctor.name = name;
-    }
-
-    if (email !== undefined) {
-      doctor.email =
-        email.toLowerCase();
-    }
-
-    if (phone !== undefined) {
-      doctor.phone = phone;
-    }
-
-    // -------------------------------------------------
     // Professional Details
-    // -------------------------------------------------
+    if (specialization !== undefined) doctor.specialization = specialization;
+    if (icon !== undefined) doctor.icon = icon;
+    if (qualification !== undefined) doctor.qualification = qualification;
+    if (experience !== undefined) doctor.experience = experience;
 
-    if (
-      specialization !==
-      undefined
-    ) {
-      doctor.specialization =
-        specialization;
-    }
-
-    if (icon !== undefined) {
-      doctor.icon = icon;
-    }
-
-    if (
-      qualification !==
-      undefined
-    ) {
-      doctor.qualification =
-        qualification;
-    }
-
-    if (
-      experience !==
-      undefined
-    ) {
-      doctor.experience =
-        experience;
-    }
-
-    // -------------------------------------------------
     // Consultation Fee
-    // -------------------------------------------------
-
-    if (
-      consultationFee !==
-      undefined
-    ) {
-      doctor.consultationFee =
-        Number(consultationFee);
+    if (consultationFee !== undefined) {
+      doctor.consultationFee = Number(consultationFee);
     }
 
-    // -------------------------------------------------
-    // Hospital
-    // -------------------------------------------------
+    // Hospital / Address
+    if (hospital !== undefined) doctor.hospital = hospital;
+    if (address !== undefined) doctor.address = address;
 
-    if (hospital !== undefined) {
-      doctor.hospital = hospital;
-    }
-
-    if (address !== undefined) {
-      doctor.address = address;
-    }
-
-    // -------------------------------------------------
     // About
-    // -------------------------------------------------
+    if (about !== undefined) doctor.about = about;
 
-    if (about !== undefined) {
-      doctor.about = about;
-    }
+    // Profile Image
+    if (image !== undefined) doctor.image = image;
 
-    // -------------------------------------------------
-    // Image
-    // -------------------------------------------------
-
-    if (image !== undefined) {
-      doctor.image = image;
-    }
-
-    // -------------------------------------------------
     // Consultation Types
-    // -------------------------------------------------
-
-    if (
-      consultationType !==
-      undefined
-    ) {
-      doctor.consultationType =
-        normalizeConsultationTypes(
-          consultationType
-        );
+    if (consultationType !== undefined) {
+      doctor.consultationType = normalizeConsultationTypes(consultationType);
     }
 
-    // -------------------------------------------------
     // Availability
-    // -------------------------------------------------
+    if (available !== undefined) doctor.available = available;
 
-    if (
-      available !==
-      undefined
-    ) {
-      doctor.available =
-        available;
+    // ========== CERTIFICATES FIX ==========
+    if (certificates !== undefined) {
+      // Accept both stringified JSON and actual array
+      let parsedCertificates = certificates;
+
+      if (typeof certificates === "string") {
+        try {
+          parsedCertificates = JSON.parse(certificates);
+        } catch (err) {
+          parsedCertificates = [];
+        }
+      }
+
+      if (Array.isArray(parsedCertificates)) {
+        doctor.certificates = parsedCertificates;
+      }
     }
+    // ======================================
 
-    // -------------------------------------------------
     // Make sure user is connected
-    // -------------------------------------------------
-
     doctor.user = userId;
-
-    // -------------------------------------------------
-    // Save
-    // -------------------------------------------------
 
     await doctor.save();
 
-    await doctor.populate(
-      "user",
-      "name email phone"
-    );
+    await doctor.populate("user", "name email phone");
 
     return res.status(200).json({
       success: true,
-      message:
-        "Doctor profile updated successfully",
+      message: "Doctor profile updated successfully",
       doctor,
     });
   } catch (error) {
-    console.error(
-      "Update Doctor Error:",
-      error
-    );
-
+    console.error("Update Doctor Error:", error);
     return res.status(500).json({
       success: false,
       message: error.message,

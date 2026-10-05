@@ -285,6 +285,53 @@ const getPatientReportsForDoctor = async (req, res) => {
     });
   }
 };
+
+// ======================================
+// Upload Doctor Certificate (Single)
+// ======================================
+const uploadCertificate = async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({
+        success: false,
+        message: "Please upload a certificate image",
+      });
+    }
+
+    const doctor = await Doctor.findOne({ user: req.user._id });
+
+    if (!doctor) {
+      return res.status(404).json({
+        success: false,
+        message: "Doctor profile not found",
+      });
+    }
+
+    // Public path (important)
+    const imagePath = `/uploads/certificates/${req.file.filename}`;
+
+    const newCertificate = {
+      title: req.body.title || "Certificate",
+      image: imagePath,
+    };
+
+    // Push into certificates array
+    doctor.certificates.push(newCertificate);
+    await doctor.save();
+
+    return res.status(200).json({
+      success: true,
+      message: "Certificate uploaded successfully",
+      doctor,
+    });
+  } catch (error) {
+    console.error("Upload Certificate Error:", error);
+    return res.status(500).json({
+      success: false,
+      message: error.message,
+    });
+  }
+};
 module.exports = {
   uploadProfileImage,
   uploadDoctorDocuments,
@@ -292,4 +339,5 @@ module.exports = {
   uploadReport,
   getPatientReports,
   getPatientReportsForDoctor,
+  uploadCertificate,
 };
