@@ -67,7 +67,7 @@ const createCashfreePayment = async (req, res) => {
     // ---------- Credentials ----------
     const appId = process.env.CASHFREE_APP_ID?.trim();
     const secretKey = process.env.CASHFREE_SECRET_KEY?.trim();
-    const env = (process.env.CASHFREE_ENV || "TEST").toUpperCase();
+    const env = (process.env.CASHFREE_ENV || "PRODUCTION").toUpperCase();
 
     if (!appId || !secretKey) {
       console.error("Cashfree credentials missing");
@@ -147,7 +147,7 @@ const createCashfreePayment = async (req, res) => {
     const apiBase =
       env === "PROD"
         ? "https://api.cashfree.com/pg"
-        : "https://sandbox.cashfree.com/pg";
+        : "https://api.cashfree.com/pg";
 
     // ---------- Payload ----------
     const payload = {
@@ -250,7 +250,7 @@ const verifyCashfreePayment = async (req, res) => {
 
     const appId = process.env.CASHFREE_APP_ID?.trim();
     const secretKey = process.env.CASHFREE_SECRET_KEY?.trim();
-    const env = (process.env.CASHFREE_ENV || "TEST").toUpperCase();
+    const env = (process.env.CASHFREE_ENV || "PRODUCTION").toUpperCase();
 
     if (!appId || !secretKey) {
       return res.status(500).json({
@@ -263,7 +263,7 @@ const verifyCashfreePayment = async (req, res) => {
     const apiBase =
       env === "PROD"
         ? "https://api.cashfree.com/pg"
-        : "https://sandbox.cashfree.com/pg";
+        : "https://api.cashfree.com/pg";
 
     // 1. Get Order
     const orderResponse = await axios.get(`${apiBase}/orders/${orderId}`, {
