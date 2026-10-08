@@ -1,70 +1,4 @@
-// const transporter = require("./transporter");
-
-// // Generate Room ID
-// const generateRoomId = () => {
-//   const id = Math.floor(100000 + Math.random() * 900000);
-//   return `VC-${id}`;
-// };
-
-// async function sendConsultationEmails({
-//   patientName,
-//   patientEmail,
-//   doctorName,
-//   doctorEmail,
-//   appointmentDate,
-//   appointmentTime,
-// }) {
-//   const roomId = generateRoomId();
-
-// //   const videoLink = `https://dr-frontend-azure.vercel.app/consult/${roomId}?type=video`;
-//   const videoLink = `http://localhost:3000/consult/${roomId}?type=video`;
-//   const audioNumber = "+918475897982"; // your number (no space)
-
-//   const emailHTML = (name) => `
-//     <div style="font-family: system-ui, sans-serif, Arial; font-size: 16px;">
-//       <p>Hello ${name},</p>
-
-//       <p>Your consultation has been confirmed. Please find the details below:</p>
-
-//       <p>Patient: ${patientName}</p>
-//       <p>Doctor: ${doctorName}</p>
-//       <p>Date: ${appointmentDate}</p>
-//       <p>Time: ${appointmentTime}</p>
-
-//       <p>Video Consult Room ID: ${roomId}</p>
-//       <p>Video Join Link: <a href="${videoLink}">${videoLink}</a></p>
-
-//       <p>Audio Number: <a href="tel:${audioNumber}">+91 98765 43210</a></p>
-
-//       <p>Please join on time.</p>
-
-//       <p>Best Regards,<br>Dr. Sharma Healthcare</p>
-//     </div>
-//   `;
-
-//   // Send to Patient
-//   await transporter.sendMail({
-//     from: `"Dr. Sharma Healthcare" <${process.env.EMAIL_USER}>`,
-//     to: patientEmail,
-//     subject: `Your Consultation Details - Room ID: ${roomId}`,
-//     html: emailHTML(patientName),
-//   });
-
-//   // Send to Doctor
-//   await transporter.sendMail({
-//     from: `"Dr. Sharma Healthcare" <${process.env.EMAIL_USER}>`,
-//     to: doctorEmail,
-//     subject: `New Consultation - Room ID: ${roomId}`,
-//     html: emailHTML(doctorName),
-//   });
-
-//   return roomId;
-// }
-
-// module.exports = { sendConsultationEmails };
-
-
-const transporter = require("./transporter");
+const transporter = require("./mailer"); // ← FIXED (pehle transporter tha)
 
 const generateRoomId = () => {
   const id = Math.floor(100000 + Math.random() * 900000);
@@ -76,53 +10,111 @@ async function sendConsultationEmails({
   patientEmail,
   doctorName,
   doctorEmail,
+  doctorPhone = "",
+  clinicAddress = "",
   appointmentDate,
   appointmentTime,
+  consultationType = "video",
 }) {
-  const roomId = generateRoomId();
+  try {
+    const type = (consultationType || "video").toLowerCase();
+    let roomId = null;
+    let extraDetailsPatient = "";
+    let extraDetailsDoctor = "";
 
-  const videoLink = `${process.env.FRONTEND_URL}/consult/${roomId}?type=video`;
-  const audioNumber = "+918475897982"; // your number
+    // ========== VIDEO ==========
+    if (type === "video") {
+      roomId = generateRoomId();
+      const videoLink = `${process.env.FRONTEND_URL}/consult/${roomId}?type=video`;
 
-  const emailHTML = (name) => `
-    <div style="font-family: system-ui, sans-serif, Arial; font-size: 16px;">
-      <p>Hello ${name},</p>
+      extraDetailsPatient = `
+        <p><strong>Video Consult Room ID:</strong> ${roomId}</p>
+        <p><strong>Join Link:</strong> <a href="${videoLink}">${videoLink}</a></p>
+      `;
+      extraDetailsDoctor = extraDetailsPatient;
+    }
 
-      <p>Your consultation has been confirmed. Please find the details below:</p>
+    // ========== AUDIO ==========
+    else if (type === "audio") {
+      const phone = doctorPhone || "+91XXXXXXXXXX";
 
-      <p>Patient: ${patientName}</p>
-      <p>Doctor: ${doctorName}</p>
-      <p>Date: ${appointmentDate}</p>
-      <p>Time: ${appointmentTime}</p>
+      extraDetailsPatient = `
+        <p><strong>Audio Consultation</strong></p>
+        <p>Please call the doctor at the scheduled time:</p>
+        <p><strong>Doctor Number:</strong> <a href="tel:${phone}">${phone}</a></p>
+      `;
 
-      <p>Video Consult Room ID: ${roomId}</p>
-      <p>Video Join Link: <a href="${videoLink}">${videoLink}</a></p>
+      extraDetailsDoctor = `
+        <p><strong>Audio Consultation</strong></p>
+        <p>Patient will call you at the scheduled time.</p>
+        <p>Patient: ${patientName}</p>
+      `;
+    }
 
-      <p>Audio Number: <a href="tel:${audioNumber}">+91 98765 43210</a></p>
+    // ========== CLINIC VISIT ==========
+    else {
+      const address = clinicAddress || "Clinic address not available";
 
-      <p>Please join on time.</p>
+      extraDetailsPatient = `
+        <p><strong>Clinic Visit</strong></p>
+        <p>Please visit the clinic at the scheduled time.</p>
+        <p><strong>Address:</strong> ${address}</p>
+      `;
 
-      <p>Best Regards,<br>Dr. Sharma Healthcare</p>
-    </div>
-  `;
+      extraDetailsDoctor = `
+        <p><strong>Clinic Visit</strong></p>
+        <p>Patient will visit the clinic.</p>
+        <p>Patient: ${patientName}</p>
+      `;
+    }
 
-  // Send to Patient
-  await transporter.sendMail({
-    from: `"Dr. Sharma Healthcare" <${process.env.EMAIL_USER}>`,
-    to: patientEmail,
-    subject: `Your Consultation Details - Room ID: ${roomId}`,
-    html: emailHTML(patientName),
-  });
+    const emailHTML = (name, extra) => `
+      <div style="font-family: system-ui, sans-serif, Arial; font-size: 16px; line-height: 1.6;">
+        <p>Hello <strong>${name}</strong>,</p>
+        <p>Your consultation has been confirmed. Details below:</p>
 
-  // Send to Doctor
-  await transporter.sendMail({
-    from: `"Dr. Sharma Healthcare" <${process.env.EMAIL_USER}>`,
-    to: doctorEmail,
-    subject: `New Consultation - Room ID: ${roomId}`,
-    html: emailHTML(doctorName),
-  });
+        <table style="border-collapse: collapse; margin: 15px 0;">
+          <tr><td style="padding: 6px 12px; font-weight: bold;">Patient</td><td style="padding: 6px 12px;">${patientName}</td></tr>
+          <tr><td style="padding: 6px 12px; font-weight: bold;">Doctor</td><td style="padding: 6px 12px;">${doctorName}</td></tr>
+          <tr><td style="padding: 6px 12px; font-weight: bold;">Date</td><td style="padding: 6px 12px;">${appointmentDate}</td></tr>
+          <tr><td style="padding: 6px 12px; font-weight: bold;">Time</td><td style="padding: 6px 12px;">${appointmentTime}</td></tr>
+          <tr><td style="padding: 6px 12px; font-weight: bold;">Type</td><td style="padding: 6px 12px; text-transform: capitalize;">${type}</td></tr>
+        </table>
 
-  return roomId;
+        ${extra}
+
+        <p>Please join / arrive on time.</p>
+        <p>Best Regards,<br><strong>Irene Medics</strong></p>
+      </div>
+    `;
+
+    // Send to Patient
+    if (patientEmail) {
+      await transporter.sendMail({
+        from: `"Irene Medics" <${process.env.EMAIL_USER}>`,
+        to: patientEmail,
+        subject: `Consultation Confirmed - ${type.toUpperCase()} | ${appointmentDate}`,
+        html: emailHTML(patientName, extraDetailsPatient),
+      });
+      console.log("✅ Email sent to patient:", patientEmail);
+    }
+
+    // Send to Doctor
+    if (doctorEmail) {
+      await transporter.sendMail({
+        from: `"Irene Medics" <${process.env.EMAIL_USER}>`,
+        to: doctorEmail,
+        subject: `New Paid Appointment - ${type.toUpperCase()} | ${patientName}`,
+        html: emailHTML(doctorName, extraDetailsDoctor),
+      });
+      console.log("✅ Email sent to doctor:", doctorEmail);
+    }
+
+    return roomId;
+  } catch (error) {
+    console.error("❌ sendConsultationEmails Error:", error.message);
+    throw error;
+  }
 }
 
 module.exports = { sendConsultationEmails };

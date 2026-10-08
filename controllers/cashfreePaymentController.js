@@ -243,7 +243,6 @@ const verifyCashfreePayment = async (req, res) => {
       });
     }
 
-    // ---------- Production API ----------
     const apiBase = "https://api.cashfree.com/pg";
 
     // 1. Get Order
@@ -319,12 +318,45 @@ const verifyCashfreePayment = async (req, res) => {
         await incrementCouponUsage(appointment.couponCode);
       }
 
-      // Notify doctor
-      const doctorProfile = await Doctor.findById(appointment.doctor);
-      const patientUser = await User.findById(appointment.patient).select(
-        "name",
+      // ---------- Doctor + Patient ----------
+      const doctorProfile = await Doctor.findById(appointment.doctor).select(
+        "name email phone address hospital user",
       );
 
+      const patientUser = await User.findById(appointment.patient).select(
+        "name email phone",
+      );
+
+      // ---------- Send Emails ----------
+      try {
+        const { sendConsultationEmails } = require("../utils/sendConsultationEmail"); // ← apna path check karo
+
+        const roomId = await sendConsultationEmails({
+          patientName: patientUser?.name || "Patient",
+          patientEmail: patientUser?.email || "",
+          doctorName: doctorProfile?.name || "Doctor",
+          doctorEmail: doctorProfile?.email || "",
+          doctorPhone: doctorProfile?.phone || "",
+          clinicAddress:
+            doctorProfile?.address || doctorProfile?.hospital || "",
+          appointmentDate: appointment.appointmentDate
+            ? new Date(appointment.appointmentDate).toLocaleDateString("en-IN")
+            : "",
+          appointmentTime: appointment.appointmentTime || "",
+          consultationType: appointment.consultationType || "video",
+        });
+
+        if (roomId) {
+          appointment.roomId = roomId;
+          await appointment.save();
+        }
+
+        console.log("✅ Consultation emails sent. RoomId:", roomId);
+      } catch (emailError) {
+        console.error("❌ Email sending failed:", emailError.message);
+      }
+
+      // ---------- In-app Notification ----------
       if (doctorProfile?.user) {
         await createNotification({
           user: doctorProfile.user,
@@ -338,7 +370,7 @@ const verifyCashfreePayment = async (req, res) => {
       const populated = await Appointment.findById(appointment._id)
         .populate(
           "doctor",
-          "name specialization hospital image consultationFee",
+          "name specialization hospital image consultationFee phone address",
         )
         .populate("patient", "name email phone");
 
@@ -356,7 +388,6 @@ const verifyCashfreePayment = async (req, res) => {
 
     if (latestPayment) {
       paymentStatus = latestPayment.payment_status;
-
       message =
         latestPayment.payment_message ||
         latestPayment.error_details?.error_description ||
@@ -392,7 +423,6 @@ const verifyCashfreePayment = async (req, res) => {
     });
   }
 };
-
 // =====================================================
 // 3. WEBHOOK (Cashfree → Backend)
 // =====================================================
