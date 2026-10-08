@@ -145,9 +145,9 @@ const createCashfreePayment = async (req, res) => {
 
     // ---------- API Base ----------
     const apiBase =
-      env === "PROD"
+      env === "PROD" || env === "PRODUCTION"
         ? "https://api.cashfree.com/pg"
-        : "https://api.cashfree.com/pg";
+        : "https://sandbox.cashfree.com/pg";
 
     // ---------- Payload ----------
     const payload = {
@@ -289,7 +289,7 @@ const verifyCashfreePayment = async (req, res) => {
           Accept: "application/json",
         },
         timeout: 20000,
-      }
+      },
     );
 
     const payments = Array.isArray(paymentsResponse.data)
@@ -297,7 +297,7 @@ const verifyCashfreePayment = async (req, res) => {
       : [];
 
     const successfulPayment = payments.find(
-      (p) => p.payment_status === "SUCCESS"
+      (p) => p.payment_status === "SUCCESS",
     );
     const latestPayment = payments[0] || null;
 
@@ -340,7 +340,9 @@ const verifyCashfreePayment = async (req, res) => {
 
       // Notify doctor
       const doctorProfile = await Doctor.findById(appointment.doctor);
-      const patientUser = await User.findById(appointment.patient).select("name");
+      const patientUser = await User.findById(appointment.patient).select(
+        "name",
+      );
 
       if (doctorProfile?.user) {
         await createNotification({
@@ -353,7 +355,10 @@ const verifyCashfreePayment = async (req, res) => {
       }
 
       const populated = await Appointment.findById(appointment._id)
-        .populate("doctor", "name specialization hospital image consultationFee")
+        .populate(
+          "doctor",
+          "name specialization hospital image consultationFee",
+        )
         .populate("patient", "name email phone");
 
       return res.status(200).json({
