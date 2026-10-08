@@ -1,5 +1,4 @@
 const axios = require("axios");
-const crypto = require("crypto");
 const Appointment = require("../models/Appointment");
 const User = require("../models/User");
 const Doctor = require("../models/Doctor");
@@ -41,7 +40,7 @@ const createNotification = async ({
 };
 
 // =====================================================
-// 1. CREATE CASHFREE ORDER
+// 1. CREATE CASHFREE ORDER (PRODUCTION)
 // =====================================================
 const createCashfreePayment = async (req, res) => {
   try {
@@ -64,10 +63,9 @@ const createCashfreePayment = async (req, res) => {
       });
     }
 
-    // ---------- Credentials ----------
+    // ---------- Production Credentials ----------
     const appId = process.env.CASHFREE_APP_ID?.trim();
     const secretKey = process.env.CASHFREE_SECRET_KEY?.trim();
-    const env = (process.env.CASHFREE_ENV || "PRODUCTION").toUpperCase();
 
     if (!appId || !secretKey) {
       console.error("Cashfree credentials missing");
@@ -77,21 +75,6 @@ const createCashfreePayment = async (req, res) => {
       });
     }
 
-    // Safety: TEST mode me keys TEST_ se start honi chahiye
-    // if (env === "TEST" && (!appId.startsWith("TEST_") || !secretKey.startsWith("TEST_"))) {
-    //   return res.status(500).json({
-    //     success: false,
-    //     message: "Sandbox mode me App ID aur Secret Key TEST_ se start hone chahiye",
-    //   });
-    // }
-    // Optional soft warning only
-    if (
-      env === "TEST" &&
-      !secretKey.includes("test") &&
-      !secretKey.startsWith("TEST_")
-    ) {
-      console.warn("Warning: Secret key does not look like a test key");
-    }
     // ---------- Amount ----------
     const amount = Number(
       appointment.finalAmount ??
@@ -112,7 +95,7 @@ const createCashfreePayment = async (req, res) => {
     // ---------- Unique Order ID ----------
     const orderId = `APPT_${appointment._id.toString().slice(-8)}_${Date.now()}`;
 
-    // ---------- Patient details (safe way) ----------
+    // ---------- Patient details ----------
     const patientUser = await User.findById(req.user._id).select(
       "name email phone",
     );
@@ -143,11 +126,13 @@ const createCashfreePayment = async (req, res) => {
       });
     }
 
-    // ---------- API Base ----------
-    const apiBase =
-      env === "PROD" || env === "PRODUCTION"
-        ? "https://api.cashfree.com/pg"
-        : "https://sandbox.cashfree.com/pg";
+    // ---------- Production API ----------
+    const apiBase = "https://api.cashfree.com/pg";
+
+    // IMPORTANT: FRONTEND_URL must be your live domain (https://irenemedics.com)
+    // localhost will give "Broken Link" error in production
+    const frontendUrl = process.env.FRONTEND_URL || "https://irenemedics.com";
+    const backendUrl = process.env.BACKEND_URL || "https://api.irenemedics.com";
 
     // ---------- Payload ----------
     const payload = {
@@ -161,19 +146,18 @@ const createCashfreePayment = async (req, res) => {
         customer_phone: customerPhone,
       },
       order_meta: {
-        return_url: `${process.env.FRONTEND_URL || "http://localhost:3000"}/payment/success?order_id={order_id}&appointment_id=${appointment._id}`,
-        notify_url: `${process.env.BACKEND_URL || "http://localhost:5000"}/api/cashfree/webhook`,
+        return_url: `${frontendUrl}/payment/success?order_id={order_id}&appointment_id=${appointment._id}`,
+        notify_url: `${backendUrl}/api/cashfree/webhook`,
       },
       order_note: `Doctor Consultation - ${appointment.doctor?.name || "Doctor"}`,
     };
 
-    console.log("========== CASHFREE CREATE ORDER ==========");
-    console.log("Env:", env);
+    console.log("========== CASHFREE PRODUCTION CREATE ORDER ==========");
     console.log("API Base:", apiBase);
     console.log("Order ID:", orderId);
     console.log("Amount:", orderAmount);
-    console.log("Customer Phone:", `******${customerPhone.slice(-4)}`);
-    console.log("==========================================");
+    console.log("Return URL:", payload.order_meta.return_url);
+    console.log("======================================================");
 
     // ---------- Create Order ----------
     const response = await axios.post(`${apiBase}/orders`, payload, {
@@ -208,7 +192,7 @@ const createCashfreePayment = async (req, res) => {
         payment_session_id: cashfreeOrder.payment_session_id,
         order_amount: cashfreeOrder.order_amount,
         order_currency: cashfreeOrder.order_currency || "INR",
-        env: env === "PROD" ? "production" : "sandbox",
+        env: "production",
       },
     });
   } catch (error) {
@@ -233,7 +217,7 @@ const createCashfreePayment = async (req, res) => {
 };
 
 // =====================================================
-// 2. VERIFY PAYMENT (Secure - calls Cashfree)
+// 2. VERIFY PAYMENT (PRODUCTION)
 // =====================================================
 const verifyCashfreePayment = async (req, res) => {
   try {
@@ -250,7 +234,6 @@ const verifyCashfreePayment = async (req, res) => {
 
     const appId = process.env.CASHFREE_APP_ID?.trim();
     const secretKey = process.env.CASHFREE_SECRET_KEY?.trim();
-    const env = (process.env.CASHFREE_ENV || "PRODUCTION").toUpperCase();
 
     if (!appId || !secretKey) {
       return res.status(500).json({
@@ -260,10 +243,8 @@ const verifyCashfreePayment = async (req, res) => {
       });
     }
 
-    const apiBase =
-      env === "PROD"
-        ? "https://api.cashfree.com/pg"
-        : "https://api.cashfree.com/pg";
+    // ---------- Production API ----------
+    const apiBase = "https://api.cashfree.com/pg";
 
     // 1. Get Order
     const orderResponse = await axios.get(`${apiBase}/orders/${orderId}`, {
@@ -374,7 +355,7 @@ const verifyCashfreePayment = async (req, res) => {
     let message = "Payment failed or was cancelled.";
 
     if (latestPayment) {
-      paymentStatus = latestPayment.payment_status; // FAILED, USER_DROPPED, PENDING, etc.
+      paymentStatus = latestPayment.payment_status;
 
       message =
         latestPayment.payment_message ||
@@ -382,7 +363,6 @@ const verifyCashfreePayment = async (req, res) => {
         latestPayment.error_details?.message ||
         `Payment ${paymentStatus.toLowerCase()}`;
     } else {
-      // No payment attempt found
       paymentStatus =
         orderData.order_status === "ACTIVE" ? "PENDING" : "FAILED";
       message =
@@ -393,7 +373,7 @@ const verifyCashfreePayment = async (req, res) => {
 
     return res.status(200).json({
       success: false,
-      paymentStatus, // FAILED | USER_DROPPED | PENDING | CANCELLED
+      paymentStatus,
       message,
       order_status: orderData.order_status,
     });
@@ -412,12 +392,13 @@ const verifyCashfreePayment = async (req, res) => {
     });
   }
 };
+
 // =====================================================
 // 3. WEBHOOK (Cashfree → Backend)
 // =====================================================
 const cashfreeWebhook = async (req, res) => {
   try {
-    // Always respond 200 quickly so Cashfree doesn't retry unnecessarily
+    // Always respond 200 quickly
     res.status(200).send("OK");
 
     const event = req.body;
@@ -427,7 +408,6 @@ const cashfreeWebhook = async (req, res) => {
     console.log("Order ID:", event.data?.order?.order_id);
     console.log("======================================");
 
-    // We mainly care about payment success
     if (
       event.type === "PAYMENT_SUCCESS_WEBHOOK" ||
       event.type === "PAYMENT_SUCCESS" ||
@@ -481,7 +461,6 @@ const cashfreeWebhook = async (req, res) => {
     }
   } catch (error) {
     console.error("Cashfree Webhook Error:", error.message);
-    // Already sent 200, so just log
   }
 };
 

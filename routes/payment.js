@@ -1,46 +1,29 @@
 const express = require("express");
 const router = express.Router();
+const axios = require("axios");
 
 const Appointment = require("../models/Appointment");
 const { sendConsultationEmails } = require("../utils/sendConsultationEmail");
 const auth = require("../middleware/auth");
 
 // =====================================================
-// CONFIRM PAYMENT
+// CONFIRM PAYMENT (Secure version)
 // =====================================================
-// This endpoint should be called ONLY after the payment
-// has been successfully verified with Cashfree.
-//
-// Flow:
-// Cashfree Payment Success
-//        ↓
-// Verify payment
-//        ↓
-// This API
-//        ↓
-// paymentStatus = paid
-// status = Pending
-//        ↓
-// Doctor accepts appointment
-//        ↓
-// status = Confirmed
-// roomId generated
-// =====================================================
-
 router.post("/confirm-payment/:id", auth, async (req, res) => {
   try {
     const appointmentId = req.params.id;
+    const orderId = req.body.orderId || req.body.paymentId;
 
-    console.log("====================================");
-    console.log("CONFIRM PAYMENT");
-    console.log("Appointment ID:", appointmentId);
-    console.log("User ID:", req.user?._id);
-    console.log("====================================");
+    if (!orderId) {
+      return res.status(400).json({
+        success: false,
+        message: "orderId is required",
+      });
+    }
 
     // =====================================================
-    // FIND APPOINTMENT
+    // 1. FIND APPOINTMENT
     // =====================================================
-
     const appointment = await Appointment.findOne({
       _id: appointmentId,
       patient: req.user._id,
@@ -55,9 +38,14 @@ router.post("/confirm-payment/:id", auth, async (req, res) => {
       });
     }
 
-    // =====================================================
-    // CHECK APPOINTMENT STATUS
-    // =====================================================
+    // Already paid
+    if (appointment.paymentStatus === "paid") {
+      return res.status(200).json({
+        success: true,
+        message: "Payment already confirmed",
+        appointment,
+      });
+    }
 
     if (appointment.status !== "Pending Payment") {
       return res.status(400).json({
@@ -67,130 +55,98 @@ router.post("/confirm-payment/:id", auth, async (req, res) => {
     }
 
     // =====================================================
-    // PAYMENT ID
+    // 2. VERIFY WITH CASHFREE (IMPORTANT)
     // =====================================================
-    // Cashfree order/payment ID can be sent from frontend
-    // after successful payment verification.
+    const appId = process.env.CASHFREE_APP_ID?.trim();
+    const secretKey = process.env.CASHFREE_SECRET_KEY?.trim();
 
-    const paymentId =
-      req.body.paymentId ||
-      req.body.orderId ||
-      appointment.paymentId ||
-      null;
-
-    // =====================================================
-    // MARK PAYMENT AS PAID
-    // =====================================================
-
-    appointment.paymentStatus = "paid";
-
-    appointment.paymentId = paymentId;
-
-    appointment.paidAt = new Date();
-
-    // IMPORTANT:
-    // Do NOT set Confirmed here.
-    //
-    // Your existing doctor accept flow changes:
-    //
-    // Pending → Confirmed
-    //
-    // after doctor accepts the appointment.
-
-    appointment.status = "Pending";
-
-    await appointment.save();
-
-    console.log("Payment marked as paid");
-    console.log("Payment ID:", appointment.paymentId);
-
-    // =====================================================
-    // SEND CONSULTATION EMAILS
-    // =====================================================
-    //
-    // NOTE:
-    // Your existing sendConsultationEmails() function
-    // appears to return a roomId.
-    //
-    // Your current doctor acceptAppointment() also creates
-    // a roomId for video/audio appointments.
-    //
-    // Therefore we only use the returned roomId if one
-    // does not already exist.
-    // =====================================================
-
-    let roomId = appointment.roomId || null;
-
-    try {
-      const emailRoomId = await sendConsultationEmails({
-        patientName: appointment.patient?.name || "Patient",
-
-        patientEmail: appointment.patient?.email || "",
-
-        doctorName: appointment.doctor?.name || "Doctor",
-
-        doctorEmail: appointment.doctor?.email || "",
-
-        // CORRECT FIELD NAMES
-        appointmentDate: appointment.appointmentDate,
-
-        appointmentTime: appointment.appointmentTime,
+    if (!appId || !secretKey) {
+      return res.status(500).json({
+        success: false,
+        message: "Cashfree credentials missing",
       });
+    }
 
-      // Only save returned room ID if appointment doesn't
-      // already have one.
-      if (!roomId && emailRoomId) {
-        roomId = emailRoomId;
+    const apiBase = "https://api.cashfree.com/pg";
 
-        appointment.roomId = emailRoomId;
+    // Get payments for this order
+    const paymentsResponse = await axios.get(
+      `${apiBase}/orders/${orderId}/payments`,
+      {
+        headers: {
+          "x-client-id": appId,
+          "x-client-secret": secretKey,
+          "x-api-version": "2025-01-01",
+          Accept: "application/json",
+        },
+        timeout: 20000,
+      },
+    );
 
-        await appointment.save();
-      }
-    } catch (emailError) {
-      // Payment is already marked successful.
-      // Don't make payment fail just because email failed.
+    const payments = Array.isArray(paymentsResponse.data)
+      ? paymentsResponse.data
+      : [];
 
-      console.error(
-        "Consultation email failed:",
-        emailError.message
-      );
+    const successfulPayment = payments.find(
+      (p) => p.payment_status === "SUCCESS",
+    );
+
+    if (!successfulPayment) {
+      return res.status(400).json({
+        success: false,
+        message: "Payment not successful on Cashfree",
+        paymentStatus: payments[0]?.payment_status || "FAILED",
+      });
     }
 
     // =====================================================
-    // RESPONSE
+    // 3. MARK AS PAID
     // =====================================================
+    appointment.paymentStatus = "paid";
+    appointment.paymentId = orderId;
+    appointment.paidAt = new Date();
+    appointment.status = "Pending"; // waiting for doctor approval
 
+    await appointment.save();
+
+    // =====================================================
+    // 4. SEND EMAILS (optional)
+    // =====================================================
+    try {
+      await sendConsultationEmails({
+        patientName: appointment.patient?.name || "Patient",
+        patientEmail: appointment.patient?.email || "",
+        doctorName: appointment.doctor?.name || "Doctor",
+        doctorEmail: appointment.doctor?.email || "",
+        appointmentDate: appointment.appointmentDate,
+        appointmentTime: appointment.appointmentTime,
+      });
+    } catch (emailError) {
+      console.error("Consultation email failed:", emailError.message);
+      // Don't fail the request because of email
+    }
+
+    // =====================================================
+    // 5. RESPONSE
+    // =====================================================
     return res.status(200).json({
       success: true,
-
       message:
         "Payment confirmed successfully. Appointment is waiting for doctor approval.",
-
       appointment: {
         _id: appointment._id,
-
         status: appointment.status,
-
         paymentStatus: appointment.paymentStatus,
-
         paymentId: appointment.paymentId,
-
         paidAt: appointment.paidAt,
-
         appointmentDate: appointment.appointmentDate,
-
         appointmentTime: appointment.appointmentTime,
-
         consultationType: appointment.consultationType,
-
-        roomId: appointment.roomId || roomId || null,
+        roomId: appointment.roomId || null,
       },
     });
   } catch (error) {
-    console.error("====================================");
-    console.error("CONFIRM PAYMENT ERROR");
-    console.error(error);
-    console.error("====================================");
+    console.error("CONFIRM PAYMENT ERROR:", error.response?.data || error.message);
 
     return res.status(500).json({
       success: false,
