@@ -9,7 +9,6 @@ const doctorSchema = new mongoose.Schema(
     // =====================================================
     // Linked User Account
     // =====================================================
-
     user: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
@@ -20,7 +19,6 @@ const doctorSchema = new mongoose.Schema(
     // =====================================================
     // Basic Details
     // =====================================================
-
     name: {
       type: String,
       required: true,
@@ -41,7 +39,6 @@ const doctorSchema = new mongoose.Schema(
     // =====================================================
     // Professional Details
     // =====================================================
-
     specialization: {
       type: String,
       trim: true,
@@ -68,7 +65,6 @@ const doctorSchema = new mongoose.Schema(
     // =====================================================
     // Consultation Details
     // =====================================================
-
     consultationFee: {
       type: Number,
       min: 0,
@@ -84,7 +80,6 @@ const doctorSchema = new mongoose.Schema(
     // =====================================================
     // Hospital / Clinic
     // =====================================================
-
     hospital: {
       type: String,
       trim: true,
@@ -97,10 +92,28 @@ const doctorSchema = new mongoose.Schema(
       default: "",
     },
 
+    // New recommended clinic fields
+    clinicAddress: {
+      type: String,
+      trim: true,
+      default: "",
+    },
+
+    clinicCity: {
+      type: String,
+      trim: true,
+      default: "",
+    },
+
+    clinicPincode: {
+      type: String,
+      trim: true,
+      default: "",
+    },
+
     // =====================================================
     // Doctor Description
     // =====================================================
-
     about: {
       type: String,
       trim: true,
@@ -110,7 +123,6 @@ const doctorSchema = new mongoose.Schema(
     // =====================================================
     // Doctor Certificates
     // =====================================================
-
     certificates: [
       {
         title: {
@@ -118,7 +130,6 @@ const doctorSchema = new mongoose.Schema(
           trim: true,
           default: "",
         },
-
         image: {
           type: String,
           trim: true,
@@ -130,7 +141,6 @@ const doctorSchema = new mongoose.Schema(
     // =====================================================
     // Profile Image
     // =====================================================
-
     image: {
       type: String,
       default: "",
@@ -139,7 +149,6 @@ const doctorSchema = new mongoose.Schema(
     // =====================================================
     // Verification
     // =====================================================
-
     verificationStatus: {
       type: String,
       enum: ["Pending", "Verified", "Rejected"],
@@ -160,7 +169,6 @@ const doctorSchema = new mongoose.Schema(
     // =====================================================
     // Availability
     // =====================================================
-
     available: {
       type: Boolean,
       default: true,

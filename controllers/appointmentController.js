@@ -23,7 +23,7 @@ const emailTransporter = nodemailer.createTransport({
 });
 
 // =====================================================
-// NOTIFICATION / EMAIL / SMS HELPERS
+// HELPERS
 // =====================================================
 const createAppointmentNotification = async ({
   user,
@@ -445,11 +445,16 @@ const bookAppointment = async (req, res) => {
       }
     }
 
-    // Notifications
+    // =====================================================
+    // NOTIFICATIONS (always create)
+    // =====================================================
     await createAppointmentNotification({
       user: patientId,
       appointment,
-      title: consultationType === "clinic" ? "Appointment Request Sent" : "Appointment Created - Payment Required",
+      title:
+        consultationType === "clinic"
+          ? "Appointment Request Sent"
+          : "Appointment Created - Payment Required",
       message:
         consultationType === "clinic"
           ? "Your clinic visit request has been sent to the doctor and is waiting for approval."
@@ -467,25 +472,26 @@ const bookAppointment = async (req, res) => {
       });
     }
 
-    // Emails
-    await sendAppointmentEmail({
-      to: patientUser?.email || patientIntake?.email,
-      subject: consultationType === "clinic" ? "Clinic Visit Request Sent" : "Complete Payment for Your Appointment",
-      message:
-        `Hello ${patientUser?.name || patientIntake?.fullName || "Patient"},\n\n` +
-        (consultationType === "clinic"
-          ? `Your clinic visit request has been sent successfully.\n\n`
-          : `Your appointment has been created. Please complete the payment.\n\n`) +
-        `Doctor: ${doctorProfile.name}\n` +
-        `Date: ${bookingDate}\n` +
-        `Time: ${appointmentTime}\n` +
-        `Consultation: ${consultationType}\n\n` +
-        (consultationType === "clinic"
-          ? `Please wait for the doctor's approval.`
-          : `After payment, the doctor will review your request.`),
-    });
-
+    // =====================================================
+    // EMAIL + SMS → ONLY FOR CLINIC
+    // Video / Audio email will be sent AFTER successful payment
+    // =====================================================
     if (consultationType === "clinic") {
+      // Patient Email
+      await sendAppointmentEmail({
+        to: patientUser?.email || patientIntake?.email,
+        subject: "Clinic Visit Request Sent",
+        message:
+          `Hello ${patientUser?.name || patientIntake?.fullName || "Patient"},\n\n` +
+          `Your clinic visit request has been sent successfully.\n\n` +
+          `Doctor: ${doctorProfile.name}\n` +
+          `Date: ${bookingDate}\n` +
+          `Time: ${appointmentTime}\n` +
+          `Consultation: ${consultationType}\n\n` +
+          `Please wait for the doctor's approval.`,
+      });
+
+      // Doctor Email
       await sendAppointmentEmail({
         to: doctorUser?.email,
         subject: "New Clinic Visit Request + Patient Info",
@@ -497,30 +503,14 @@ const bookAppointment = async (req, res) => {
           intakeSummary +
           `\nPlease open your doctor dashboard to review the request.`,
       });
-    } else {
-      await sendAppointmentEmail({
-        to: doctorUser?.email,
-        subject: "New Appointment Request (Payment Pending)",
-        message:
-          `Hello ${doctorProfile.name || "Doctor"},\n\n` +
-          `${patientUser?.name || patientIntake?.fullName || "A patient"} has created an appointment (payment pending).\n\n` +
-          `Date: ${bookingDate}\n` +
-          `Time: ${appointmentTime}\n` +
-          `Consultation: ${consultationType}\n` +
-          intakeSummary,
+
+      // Patient SMS
+      await sendAppointmentSMS({
+        to: patientUser?.phone || patientIntake?.phone,
+        message: `Dr. Sharma: Your clinic visit request was sent for ${bookingDate} at ${appointmentTime}. Waiting for doctor approval.`,
       });
-    }
 
-    // SMS
-    await sendAppointmentSMS({
-      to: patientUser?.phone || patientIntake?.phone,
-      message:
-        consultationType === "clinic"
-          ? `Dr. Sharma: Your clinic visit request was sent for ${bookingDate} at ${appointmentTime}. Waiting for doctor approval.`
-          : `Dr. Sharma: Appointment created for ${bookingDate} at ${appointmentTime}. Please complete payment.`,
-    });
-
-    if (consultationType === "clinic") {
+      // Doctor SMS
       await sendAppointmentSMS({
         to: doctorUser?.phone,
         message: `Dr. Sharma: New clinic visit request from ${
@@ -528,6 +518,8 @@ const bookAppointment = async (req, res) => {
         } for ${bookingDate} at ${appointmentTime}.`,
       });
     }
+
+    // For Video / Audio → NO email and NO SMS here
 
     const populatedAppointment = await Appointment.findById(appointment._id)
       .populate(
@@ -559,13 +551,17 @@ const bookAppointment = async (req, res) => {
   }
 };
 
+
 // =====================================================
 // GET APPOINTMENT BY ID
 // =====================================================
 const getAppointmentById = async (req, res) => {
   try {
     const appointment = await Appointment.findById(req.params.id)
-      .populate("doctor", "name specialization hospital image consultationFee")
+      .populate(
+        "doctor",
+        "name specialization hospital image consultationFee phone mobile clinicAddress clinicCity clinicPincode address"
+      )
       .populate("patient", "name email phone");
 
     if (!appointment) {
@@ -592,10 +588,10 @@ const getAppointmentById = async (req, res) => {
 const patientAppointments = async (req, res) => {
   try {
     const appointments = await Appointment.find({ patient: req.params.id })
-      .populate(
-        "doctor",
-        "name specialization qualification experience hospital image consultationFee"
-      )
+     .populate(
+  "doctor",
+  "name specialization qualification experience hospital image consultationFee phone mobile clinicAddress clinicCity clinicPincode address"
+)
       .sort({ appointmentDate: -1, createdAt: -1 });
 
     res.status(200).json({
@@ -615,10 +611,10 @@ const patientAppointments = async (req, res) => {
 const getMyPatientAppointments = async (req, res) => {
   try {
     const appointments = await Appointment.find({ patient: req.user._id })
-      .populate(
-        "doctor",
-        "name specialization qualification experience hospital image consultationFee"
-      )
+    .populate(
+  "doctor",
+  "name specialization qualification experience hospital image consultationFee phone mobile clinicAddress clinicCity clinicPincode address"
+)
       .sort({ appointmentDate: -1, createdAt: -1 });
 
     res.status(200).json({
