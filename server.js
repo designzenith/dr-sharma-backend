@@ -10,7 +10,7 @@ const passport = require("passport");
 
 require("dotenv").config();
 require("./config/passport");
-
+require("./config/redis");
 // =====================================================
 // Config / Database
 // =====================================================
