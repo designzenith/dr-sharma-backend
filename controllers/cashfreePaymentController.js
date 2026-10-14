@@ -4,11 +4,11 @@ const User = require("../models/User");
 const Doctor = require("../models/Doctor");
 const { incrementCouponUsage } = require("./couponController");
 const Notification = require("../models/Notification");
+const { sendConsultationEmails } = require("../utils/sendConsultationEmail");
 
 // =====================================================
 // HELPERS
 // =====================================================
-
 const createNotification = async ({
   user,
   appointment,
@@ -40,7 +40,7 @@ const createNotification = async ({
 };
 
 // =====================================================
-// 1. CREATE CASHFREE ORDER (PRODUCTION)
+// 1. CREATE CASHFREE ORDER
 // =====================================================
 const createCashfreePayment = async (req, res) => {
   try {
@@ -63,7 +63,6 @@ const createCashfreePayment = async (req, res) => {
       });
     }
 
-    // ---------- Production Credentials ----------
     const appId = process.env.CASHFREE_APP_ID?.trim();
     const secretKey = process.env.CASHFREE_SECRET_KEY?.trim();
 
@@ -75,12 +74,11 @@ const createCashfreePayment = async (req, res) => {
       });
     }
 
-    // ---------- Amount ----------
     const amount = Number(
       appointment.finalAmount ??
         appointment.consultationFee ??
         appointment.doctor?.consultationFee ??
-        0,
+        0
     );
 
     if (isNaN(amount) || amount <= 0) {
@@ -91,13 +89,10 @@ const createCashfreePayment = async (req, res) => {
     }
 
     const orderAmount = Number(amount.toFixed(2));
-
-    // ---------- Unique Order ID ----------
     const orderId = `APPT_${appointment._id.toString().slice(-8)}_${Date.now()}`;
 
-    // ---------- Patient details ----------
     const patientUser = await User.findById(req.user._id).select(
-      "name email phone",
+      "name email phone"
     );
 
     if (!patientUser) {
@@ -126,15 +121,10 @@ const createCashfreePayment = async (req, res) => {
       });
     }
 
-    // ---------- Production API ----------
     const apiBase = "https://api.cashfree.com/pg";
-
-    // IMPORTANT: FRONTEND_URL must be your live domain (https://irenemedics.com)
-    // localhost will give "Broken Link" error in production
     const frontendUrl = process.env.FRONTEND_URL || "https://irenemedics.com";
     const backendUrl = process.env.BACKEND_URL || "https://api.irenemedics.com";
 
-    // ---------- Payload ----------
     const payload = {
       order_id: orderId,
       order_amount: orderAmount,
@@ -152,14 +142,11 @@ const createCashfreePayment = async (req, res) => {
       order_note: `Doctor Consultation - ${appointment.doctor?.name || "Doctor"}`,
     };
 
-    console.log("========== CASHFREE PRODUCTION CREATE ORDER ==========");
-    console.log("API Base:", apiBase);
+    console.log("========== CASHFREE CREATE ORDER ==========");
     console.log("Order ID:", orderId);
     console.log("Amount:", orderAmount);
-    console.log("Return URL:", payload.order_meta.return_url);
-    console.log("======================================================");
+    console.log("==========================================");
 
-    // ---------- Create Order ----------
     const response = await axios.post(`${apiBase}/orders`, payload, {
       headers: {
         "x-client-id": appId,
@@ -174,14 +161,12 @@ const createCashfreePayment = async (req, res) => {
     const cashfreeOrder = response.data;
 
     if (!cashfreeOrder?.order_id || !cashfreeOrder?.payment_session_id) {
-      console.error("Invalid Cashfree response:", cashfreeOrder);
       return res.status(500).json({
         success: false,
         message: "Cashfree did not return a valid payment session",
       });
     }
 
-    // Save order_id on appointment
     appointment.paymentId = cashfreeOrder.order_id;
     await appointment.save();
 
@@ -196,28 +181,123 @@ const createCashfreePayment = async (req, res) => {
       },
     });
   } catch (error) {
-    console.error("========== CASHFREE CREATE ERROR ==========");
-    console.error("Status:", error.response?.status);
-    console.error("Data:", error.response?.data);
-    console.error("Message:", error.message);
-    console.error("==========================================");
-
-    const cashfreeData = error.response?.data;
-
+    console.error("CASHFREE CREATE ERROR:", error.response?.data || error.message);
     return res.status(error.response?.status || 500).json({
       success: false,
       message:
-        cashfreeData?.message ||
-        cashfreeData?.error_description ||
+        error.response?.data?.message ||
         error.message ||
         "Cashfree payment creation failed",
-      cashfreeError: cashfreeData || null,
     });
   }
 };
 
 // =====================================================
-// 2. VERIFY PAYMENT (PRODUCTION)
+// COMMON FUNCTION: Mark as Paid + Confirmed + Send Email
+// =====================================================
+const markAppointmentAsPaidAndConfirmed = async (appointment) => {
+  // Already processed
+  if (
+    appointment.paymentStatus === "paid" &&
+    appointment.status === "Confirmed"
+  ) {
+    return appointment;
+  }
+
+  // Mark as paid + confirmed
+  appointment.status = "Confirmed";
+  appointment.paymentStatus = "paid";
+  appointment.paidAt = new Date();
+
+  // Generate roomId for video if not already present
+  if (appointment.consultationType === "video" && !appointment.roomId) {
+    const id = Math.floor(100000 + Math.random() * 900000);
+    appointment.roomId = `VC-${id}`;
+  }
+
+  await appointment.save();
+
+  // Increment coupon usage
+  if (appointment.couponCode) {
+    await incrementCouponUsage(appointment.couponCode);
+  }
+
+  // Get doctor + patient details
+  const doctorProfile = await Doctor.findById(appointment.doctor)
+    .select(
+      "name email phone mobile clinicAddress clinicCity clinicPincode hospital address user"
+    )
+    .populate("user", "name email phone");
+
+  const patientUser = await User.findById(appointment.patient).select(
+    "name email phone"
+  );
+
+  const doctorPhone =
+    doctorProfile?.phone ||
+    doctorProfile?.mobile ||
+    doctorProfile?.user?.phone ||
+    "";
+
+  const clinicAddress =
+    doctorProfile?.clinicAddress ||
+    doctorProfile?.address ||
+    doctorProfile?.hospital ||
+    "";
+
+  // ---------- Send Confirmation Emails ----------
+  try {
+    const roomId = await sendConsultationEmails({
+      patientName: patientUser?.name || "Patient",
+      patientEmail: patientUser?.email || "",
+      doctorName: doctorProfile?.name || "Doctor",
+      doctorEmail:
+        doctorProfile?.email || doctorProfile?.user?.email || "",
+      doctorPhone,
+      clinicAddress,
+      appointmentDate: appointment.appointmentDate
+        ? new Date(appointment.appointmentDate).toLocaleDateString("en-IN")
+        : "",
+      appointmentTime: appointment.appointmentTime || "",
+      consultationType: appointment.consultationType || "video",
+      roomId: appointment.roomId,
+    });
+
+    // Save roomId if generated by email utility
+    if (roomId && !appointment.roomId) {
+      appointment.roomId = roomId;
+      await appointment.save();
+    }
+
+    console.log("✅ Consultation emails sent. RoomId:", roomId || appointment.roomId);
+  } catch (emailError) {
+    console.error("❌ Email sending failed:", emailError.message);
+  }
+
+  // ---------- In-app Notifications ----------
+  if (doctorProfile?.user) {
+    await createNotification({
+      user: doctorProfile.user._id || doctorProfile.user,
+      appointment,
+      title: "New Confirmed Appointment",
+      message: `${patientUser?.name || "A patient"} has paid and the appointment is confirmed.`,
+      type: "appointment-booked",
+    });
+  }
+
+  await createNotification({
+    user: appointment.patient,
+    appointment,
+    title: "Appointment Confirmed",
+    message: `Your ${appointment.consultationType} consultation has been confirmed after successful payment.`,
+    type: "appointment-booked",
+  });
+
+  return appointment;
+};
+
+// =====================================================
+// 2. VERIFY PAYMENT
 // =====================================================
 const verifyCashfreePayment = async (req, res) => {
   try {
@@ -269,7 +349,7 @@ const verifyCashfreePayment = async (req, res) => {
           Accept: "application/json",
         },
         timeout: 20000,
-      },
+      }
     );
 
     const payments = Array.isArray(paymentsResponse.data)
@@ -277,7 +357,7 @@ const verifyCashfreePayment = async (req, res) => {
       : [];
 
     const successfulPayment = payments.find(
-      (p) => p.payment_status === "SUCCESS",
+      (p) => p.payment_status === "SUCCESS"
     );
     const latestPayment = payments[0] || null;
 
@@ -296,88 +376,22 @@ const verifyCashfreePayment = async (req, res) => {
         });
       }
 
-      // Already paid
-      if (appointment.paymentStatus === "paid") {
-        return res.status(200).json({
-          success: true,
-          paymentStatus: "SUCCESS",
-          message: "Payment already verified",
-          appointment,
-        });
-      }
-
-      // Mark as paid
-      appointment.status = "Pending";
-      appointment.paymentStatus = "paid";
-      appointment.paymentId = orderId;
-      appointment.paidAt = new Date();
-      await appointment.save();
-
-      // Coupon
-      if (appointment.couponCode) {
-        await incrementCouponUsage(appointment.couponCode);
-      }
-
-      // ---------- Doctor + Patient ----------
-      const doctorProfile = await Doctor.findById(appointment.doctor).select(
-        "name email phone address hospital user",
+      // Mark as Paid + Confirmed + Send Email
+      const updatedAppointment = await markAppointmentAsPaidAndConfirmed(
+        appointment
       );
 
-      const patientUser = await User.findById(appointment.patient).select(
-        "name email phone",
-      );
-
-      // ---------- Send Emails ----------
-      try {
-        const { sendConsultationEmails } = require("../utils/sendConsultationEmail"); // ← apna path check karo
-
-        const roomId = await sendConsultationEmails({
-          patientName: patientUser?.name || "Patient",
-          patientEmail: patientUser?.email || "",
-          doctorName: doctorProfile?.name || "Doctor",
-          doctorEmail: doctorProfile?.email || "",
-          doctorPhone: doctorProfile?.phone || "",
-          clinicAddress:
-            doctorProfile?.address || doctorProfile?.hospital || "",
-          appointmentDate: appointment.appointmentDate
-            ? new Date(appointment.appointmentDate).toLocaleDateString("en-IN")
-            : "",
-          appointmentTime: appointment.appointmentTime || "",
-          consultationType: appointment.consultationType || "video",
-        });
-
-        if (roomId) {
-          appointment.roomId = roomId;
-          await appointment.save();
-        }
-
-        console.log("✅ Consultation emails sent. RoomId:", roomId);
-      } catch (emailError) {
-        console.error("❌ Email sending failed:", emailError.message);
-      }
-
-      // ---------- In-app Notification ----------
-      if (doctorProfile?.user) {
-        await createNotification({
-          user: doctorProfile.user,
-          appointment,
-          title: "New Paid Appointment Request",
-          message: `${patientUser?.name || "A patient"} has paid and requested an appointment.`,
-          type: "appointment-booked",
-        });
-      }
-
-      const populated = await Appointment.findById(appointment._id)
+      const populated = await Appointment.findById(updatedAppointment._id)
         .populate(
           "doctor",
-          "name specialization hospital image consultationFee phone address",
+          "name specialization hospital image consultationFee phone mobile clinicAddress clinicCity clinicPincode address"
         )
         .populate("patient", "name email phone");
 
       return res.status(200).json({
         success: true,
         paymentStatus: "SUCCESS",
-        message: "Payment verified successfully. Waiting for doctor approval.",
+        message: "Payment successful. Appointment confirmed.",
         appointment: populated,
       });
     }
@@ -409,10 +423,7 @@ const verifyCashfreePayment = async (req, res) => {
       order_status: orderData.order_status,
     });
   } catch (error) {
-    console.error("========== VERIFY PAYMENT ERROR ==========");
-    console.error(error.response?.data || error.message);
-    console.error("==========================================");
-
+    console.error("VERIFY PAYMENT ERROR:", error.response?.data || error.message);
     return res.status(error.response?.status || 500).json({
       success: false,
       paymentStatus: "FAILED",
@@ -423,8 +434,9 @@ const verifyCashfreePayment = async (req, res) => {
     });
   }
 };
+
 // =====================================================
-// 3. WEBHOOK (Cashfree → Backend)
+// 3. WEBHOOK
 // =====================================================
 const cashfreeWebhook = async (req, res) => {
   try {
@@ -457,37 +469,10 @@ const cashfreeWebhook = async (req, res) => {
         return;
       }
 
-      if (appointment.paymentStatus === "paid") {
-        console.log("Webhook: Already marked as paid");
-        return;
-      }
+      // Mark as Paid + Confirmed + Send Email
+      await markAppointmentAsPaidAndConfirmed(appointment);
 
-      appointment.status = "Pending";
-      appointment.paymentStatus = "paid";
-      appointment.paidAt = new Date();
-      await appointment.save();
-
-      if (appointment.couponCode) {
-        await incrementCouponUsage(appointment.couponCode);
-      }
-
-      // Notify doctor
-      const doctorProfile = await Doctor.findById(appointment.doctor);
-      const patientUser = await User.findById(appointment.patient).select(
-        "name",
-      );
-
-      if (doctorProfile?.user) {
-        await createNotification({
-          user: doctorProfile.user,
-          appointment,
-          title: "New Paid Appointment Request",
-          message: `${patientUser?.name || "A patient"} has paid and requested an appointment.`,
-          type: "appointment-booked",
-        });
-      }
-
-      console.log("Webhook: Appointment marked as paid →", appointment._id);
+      console.log("Webhook: Appointment confirmed →", appointment._id);
     }
   } catch (error) {
     console.error("Cashfree Webhook Error:", error.message);

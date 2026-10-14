@@ -44,7 +44,6 @@ connectDB();
 const allowedOrigins = [
   "http://localhost:3000",
   "https://www.irenemedics.com",
-  "https://dr-frontend-azure.vercel.app",
 ];
 
 const corsOptions = {
