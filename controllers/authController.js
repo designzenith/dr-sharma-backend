@@ -2,7 +2,7 @@ const crypto = require("crypto");
 const bcrypt = require("bcryptjs"); // assume you already have this (used by User model)
 const User = require("../models/User");
 const jwt = require("jsonwebtoken");
-const transporter = require("../utils/mailer");
+const transporter = require("../config/mailer");
 
 // =====================================================
 // ADMIN EMAIL (prefer environment variable)

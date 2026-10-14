@@ -1,7 +1,7 @@
 {
   "name": "dr-sharma-backend",
   "version": "1.0.0",
-  "description": "Backend for Dr. Sharma Consultant Site",
+  "description": "Backend for Irene Medics Consultant Site",
   "main": "server.js",
   "type": "commonjs",
   "scripts": {
@@ -20,7 +20,7 @@
     "mongoose": "^9.8.0",
     "multer": "^2.4.0",
     "node-cron": "^4.6.0",
-    "nodemailer": "^9.0.5",
+    "nodemailer": "^9.1.1",
     "passport": "^0.7.0",
     "passport-google-oauth20": "^2.0.0",
     "payu-sdk": "^1.1.1",

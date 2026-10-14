@@ -92,7 +92,7 @@ app.use(
 app.get("/", (req, res) => {
   res.status(200).json({
     success: true,
-    message: "Dr. Sharma Backend Running",
+    message: "Irene Medics Backend Running",
   });
 });
 
@@ -104,9 +104,6 @@ app.get("/health", (req, res) => {
   });
 });
 
-// =====================================================
-// API ROUTES
-// =====================================================
 
 // =====================================================
 // API ROUTES
@@ -233,8 +230,6 @@ server.listen(PORT, "0.0.0.0", () => {
   console.log("========================================");
 
   console.log(`Backend: http://localhost:${PORT}`);
-
-  console.log(`Health:  http://localhost:${PORT}/health`);
 
   console.log("Frontend: http://localhost:3000");
 

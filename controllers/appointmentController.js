@@ -123,7 +123,7 @@ const sendAppointmentEmail = async ({ to, subject, message }) => {
           <tr>
             <td style="background-color: #2563eb; padding: 28px 30px; text-align: center;">
               <h1 style="margin: 0; color: #ffffff; font-size: 24px; line-height: 1.3; font-weight: 700;">
-                Dr. Sharma Healthcare
+              Irene Medics Healthcare
               </h1>
               <p style="margin: 8px 0 0; color: #dbeafe; font-size: 14px; line-height: 1.5;">
                 Healthcare &amp; Appointment Services
@@ -141,7 +141,7 @@ const sendAppointmentEmail = async ({ to, subject, message }) => {
           <tr>
             <td style="padding: 20px 30px; background-color: #f9fafb; border-top: 1px solid #e5e7eb; text-align: center;">
               <p style="margin: 0; color: #6b7280; font-size: 13px; line-height: 1.6;">
-                This is an automated email from Dr. Sharma Healthcare.
+                This is an automated email from Irene Medics Healthcare.
               </p>
               <p style="margin: 6px 0 0; color: #9ca3af; font-size: 12px; line-height: 1.5;">
                 Please do not reply directly to this email.
@@ -157,7 +157,7 @@ const sendAppointmentEmail = async ({ to, subject, message }) => {
 `;
 
     const result = await emailTransporter.sendMail({
-      from: `"Dr. Sharma Healthcare" <${process.env.EMAIL_USER}>`,
+      from: `"Irene Medics Healthcare" <${process.env.EMAIL_USER}>`,
       to,
       subject,
       text: message,
@@ -507,13 +507,13 @@ const bookAppointment = async (req, res) => {
       // Patient SMS
       await sendAppointmentSMS({
         to: patientUser?.phone || patientIntake?.phone,
-        message: `Dr. Sharma: Your clinic visit request was sent for ${bookingDate} at ${appointmentTime}. Waiting for doctor approval.`,
+        message: `Irene Medics: Your clinic visit request was sent for ${bookingDate} at ${appointmentTime}. Waiting for doctor approval.`,
       });
 
       // Doctor SMS
       await sendAppointmentSMS({
         to: doctorUser?.phone,
-        message: `Dr. Sharma: New clinic visit request from ${
+        message: `Irene Medics: New clinic visit request from ${
           patientUser?.name || patientIntake?.fullName || "patient"
         } for ${bookingDate} at ${appointmentTime}.`,
       });
@@ -790,7 +790,7 @@ const acceptAppointment = async (req, res) => {
     await sendAppointmentSMS({
       to: acceptedPatient.phone,
       message:
-        `Dr. Sharma: ${acceptedDoctor?.name || "Your doctor"} accepted your appointment ` +
+        `Irene Medics: ${acceptedDoctor?.name || "Your doctor"} accepted your appointment ` +
         `for ${bookingDate} at ${appointment.appointmentTime}.` +
         (appointment.roomId ? ` Room ID: ${appointment.roomId}` : ""),
     });
@@ -869,7 +869,7 @@ const rejectAppointment = async (req, res) => {
 
     await sendAppointmentSMS({
       to: rejectedPatient?.phone,
-      message: `Dr. Sharma: Your appointment with Dr. ${doctor.name || "Doctor"} has been cancelled. Reason: ${rejectionReason}`,
+      message: `Irene Medics: Your appointment with Dr. ${doctor.name || "Doctor"} has been cancelled. Reason: ${rejectionReason}`,
     });
 
     res.status(200).json({
@@ -1066,7 +1066,7 @@ const cancelAppointment = async (req, res) => {
 
     await sendAppointmentSMS({
       to: cancelledDoctorUser?.phone,
-      message: `Dr. Sharma: ${cancellingPatient?.name || "Patient"} cancelled the appointment. Reason: ${patientCancellationReason}`,
+      message: `Irene Medics: ${cancellingPatient?.name || "Patient"} cancelled the appointment. Reason: ${patientCancellationReason}`,
     });
 
     res.status(200).json({
