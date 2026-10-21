@@ -7,7 +7,8 @@ const { v4: uuidv4 } = require("uuid");
 const DoctorLeave = require("../models/DoctorLeave");
 const Notification = require("../models/Notification");
 const { sendSMS } = require("../utils/notify");
-const emailTransporter = require("../config/mailer");
+// const emailTransporter = require("../config/mailer");
+const { sendEmail } = require("../config/mailer");
 const Coupon = require("../models/Coupon");
 const { incrementCouponUsage } = require("./couponController");
 
@@ -95,21 +96,9 @@ const sendAppointmentEmail = async ({ to, subject, message }) => {
     return null;
   }
 
-  if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) {
-    console.error(
-      "Email skipped: EMAIL_USER or EMAIL_PASS is missing."
-    );
-    return null;
-  }
-
   try {
     console.log("📧 Attempting appointment email");
     console.log("Recipient configured:", Boolean(to));
-    console.log(
-      "SMTP user configured:",
-      Boolean(process.env.EMAIL_USER)
-    );
-    console.log("Environment:", process.env.NODE_ENV);
     console.log("Subject:", subject);
 
     const safeSubject = escapeHtml(subject);
@@ -165,33 +154,18 @@ const sendAppointmentEmail = async ({ to, subject, message }) => {
 </body>
 </html>`;
 
-    console.log("📨 Calling emailTransporter.sendMail()...");
-
-    const result = await emailTransporter.sendMail({
-      from: `"Irene Medics Healthcare" <${process.env.EMAIL_USER}>`,
+    const result = await sendEmail({
       to,
       subject,
       text: message,
       html,
     });
 
-    console.log("📧 Appointment email send result:", {
-      messageId: result.messageId,
-      accepted: result.accepted,
-      rejected: result.rejected,
-      response: result.response,
-    });
-
     return result;
   } catch (error) {
     console.error("❌ Appointment email sending failed:", {
       message: error.message,
-      code: error.code,
-      response: error.response,
-      command: error.command,
     });
-
-    // Do not fail appointment booking only because email failed.
     return null;
   }
 };
