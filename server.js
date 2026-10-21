@@ -8,9 +8,9 @@ const path = require("path");
 const { Server } = require("socket.io");
 const passport = require("passport");
 
-require("dotenv").config();
 require("./config/passport");
 require("./config/redis");
+
 // =====================================================
 // Config / Database
 // =====================================================

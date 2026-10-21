@@ -7,20 +7,15 @@ const { v4: uuidv4 } = require("uuid");
 const DoctorLeave = require("../models/DoctorLeave");
 const Notification = require("../models/Notification");
 const { sendSMS } = require("../utils/notify");
-const nodemailer = require("nodemailer");
+const emailTransporter = require("../config/mailer");
 const Coupon = require("../models/Coupon");
 const { incrementCouponUsage } = require("./couponController");
+
 
 // =====================================================
 // EMAIL CONFIGURATION
 // =====================================================
-const emailTransporter = nodemailer.createTransport({
-  service: "gmail",
-  auth: {
-    user: process.env.EMAIL_USER,
-    pass: process.env.EMAIL_PASS,
-  },
-});
+
 
 // =====================================================
 // HELPERS
@@ -92,17 +87,30 @@ const formatEmailMessage = (message = "") => {
     .join("");
 };
 
-const sendAppointmentEmail = async ({ to, subject, message }) => {
-  try {
-    if (!to) {
-      console.warn("Email skipped: recipient email is missing.");
-      return null;
-    }
 
-    if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) {
-      console.warn("Email skipped: EMAIL_USER or EMAIL_PASS is missing.");
-      return null;
-    }
+
+const sendAppointmentEmail = async ({ to, subject, message }) => {
+  if (!to) {
+    console.warn("Email skipped: recipient email is missing.");
+    return null;
+  }
+
+  if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) {
+    console.error(
+      "Email skipped: EMAIL_USER or EMAIL_PASS is missing."
+    );
+    return null;
+  }
+
+  try {
+    console.log("📧 Attempting appointment email");
+    console.log("Recipient configured:", Boolean(to));
+    console.log(
+      "SMTP user configured:",
+      Boolean(process.env.EMAIL_USER)
+    );
+    console.log("Environment:", process.env.NODE_ENV);
+    console.log("Subject:", subject);
 
     const safeSubject = escapeHtml(subject);
     const htmlMessage = formatEmailMessage(message);
@@ -115,35 +123,37 @@ const sendAppointmentEmail = async ({ to, subject, message }) => {
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>${safeSubject}</title>
 </head>
-<body style="margin: 0; padding: 0; background-color: #f3f4f6; font-family: Arial, Helvetica, sans-serif;">
-  <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color: #f3f4f6; padding: 30px 15px;">
+<body style="margin:0;padding:0;background-color:#f3f4f6;font-family:Arial,Helvetica,sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" border="0"
+    style="background-color:#f3f4f6;padding:30px 15px;">
     <tr>
       <td align="center">
-        <table width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width: 600px; background-color: #ffffff; border: 1px solid #e5e7eb; border-radius: 12px; overflow: hidden;">
+        <table width="100%" cellpadding="0" cellspacing="0" border="0"
+          style="max-width:600px;background-color:#ffffff;border:1px solid #e5e7eb;border-radius:12px;overflow:hidden;">
           <tr>
-            <td style="background-color: #2563eb; padding: 28px 30px; text-align: center;">
-              <h1 style="margin: 0; color: #ffffff; font-size: 24px; line-height: 1.3; font-weight: 700;">
-              Irene Medics Healthcare
+            <td style="background-color:#2563eb;padding:28px 30px;text-align:center;">
+              <h1 style="margin:0;color:#ffffff;font-size:24px;line-height:1.3;">
+                Irene Medics Healthcare
               </h1>
-              <p style="margin: 8px 0 0; color: #dbeafe; font-size: 14px; line-height: 1.5;">
+              <p style="margin:8px 0 0;color:#dbeafe;font-size:14px;">
                 Healthcare &amp; Appointment Services
               </p>
             </td>
           </tr>
           <tr>
-            <td style="padding: 32px 30px;">
-              <h2 style="margin: 0 0 24px; color: #111827; font-size: 22px; line-height: 1.35; font-weight: 700;">
+            <td style="padding:32px 30px;">
+              <h2 style="margin:0 0 24px;color:#111827;font-size:22px;">
                 ${safeSubject}
               </h2>
               ${htmlMessage}
             </td>
           </tr>
           <tr>
-            <td style="padding: 20px 30px; background-color: #f9fafb; border-top: 1px solid #e5e7eb; text-align: center;">
-              <p style="margin: 0; color: #6b7280; font-size: 13px; line-height: 1.6;">
+            <td style="padding:20px 30px;background-color:#f9fafb;border-top:1px solid #e5e7eb;text-align:center;">
+              <p style="margin:0;color:#6b7280;font-size:13px;line-height:1.6;">
                 This is an automated email from Irene Medics Healthcare.
               </p>
-              <p style="margin: 6px 0 0; color: #9ca3af; font-size: 12px; line-height: 1.5;">
+              <p style="margin:6px 0 0;color:#9ca3af;font-size:12px;">
                 Please do not reply directly to this email.
               </p>
             </td>
@@ -153,8 +163,9 @@ const sendAppointmentEmail = async ({ to, subject, message }) => {
     </tr>
   </table>
 </body>
-</html>
-`;
+</html>`;
+
+    console.log("📨 Calling emailTransporter.sendMail()...");
 
     const result = await emailTransporter.sendMail({
       from: `"Irene Medics Healthcare" <${process.env.EMAIL_USER}>`,
@@ -164,10 +175,23 @@ const sendAppointmentEmail = async ({ to, subject, message }) => {
       html,
     });
 
-    console.log("Email sent successfully:", result.messageId);
+    console.log("📧 Appointment email send result:", {
+      messageId: result.messageId,
+      accepted: result.accepted,
+      rejected: result.rejected,
+      response: result.response,
+    });
+
     return result;
   } catch (error) {
-    console.error("Appointment email failed:", error.message);
+    console.error("❌ Appointment email sending failed:", {
+      message: error.message,
+      code: error.code,
+      response: error.response,
+      command: error.command,
+    });
+
+    // Do not fail appointment booking only because email failed.
     return null;
   }
 };
