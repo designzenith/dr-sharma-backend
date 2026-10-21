@@ -49,15 +49,18 @@ const sendConsultationEmails = async ({
       `;
       doctorTypeBlock = `
         <p><strong>Room ID:</strong> ${finalRoomId}</p>
-        <p style="margin: 12px 0 0;">
-          <a href="${doctorVideoLink}"
-             style="display: inline-block; background: #2563eb; color: white; padding: 12px 20px;
-                    border-radius: 8px; text-decoration: none; font-weight: bold;">
-            Join Video Consultation
-          </a>
-        </p>
+        // <p style="margin: 12px 0 0;">
+        //   <a href="${doctorVideoLink}"
+        //      style="display: inline-block; background: #2563eb; color: white; padding: 12px 20px;
+        //             border-radius: 8px; text-decoration: none; font-weight: bold;">
+        //     Join Video Consultation
+        //   </a>
+        // </p>
         <p style="color: #64748b; font-size: 14px; margin-top: 12px;">
+        <span style="display: inline-block; background: #2563eb; color: white; padding: 12px 20px;
+                    border-radius: 8px; text-decoration: none; font-weight: bold;" >
           ${doctorVideoLink}
+          </span>
         </p>
       `;
     } else if (consultationType === "audio") {
