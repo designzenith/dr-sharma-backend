@@ -1,11 +1,11 @@
 const crypto = require("crypto");
-const bcrypt = require("bcryptjs"); // assume you already have this (used by User model)
+const bcrypt = require("bcryptjs");
 const User = require("../models/User");
 const jwt = require("jsonwebtoken");
-const transporter = require("../config/mailer");
+const { sendEmail } = require("../config/mailer");
 
 // =====================================================
-// ADMIN EMAIL (prefer environment variable)
+// ADMIN EMAIL
 // =====================================================
 const ADMIN_EMAIL = (
   process.env.ADMIN_EMAIL || "devyaniverma5@gmail.com"
@@ -23,19 +23,19 @@ const generateToken = (user) => {
     process.env.JWT_SECRET,
     {
       expiresIn: "7d",
-    },
+    }
   );
 };
 
 // =====================================================
-// Generate 6-digit OTP (cryptographically secure)
+// Generate 6-digit OTP
 // =====================================================
 const generateOTP = () => {
-  return crypto.randomInt(100000, 1000000).toString(); // 100000–999999
+  return crypto.randomInt(100000, 1000000).toString();
 };
 
 // =====================================================
-// Hash OTP before saving
+// Hash OTP
 // =====================================================
 const hashOTP = async (otp) => {
   return bcrypt.hash(otp, 10);
@@ -72,7 +72,6 @@ const register = async (req, res) => {
       });
     }
 
-    // Only the authorized admin email can become admin
     if (role === "admin" && normalizedEmail !== ADMIN_EMAIL) {
       return res.status(403).json({
         success: false,
@@ -80,7 +79,6 @@ const register = async (req, res) => {
       });
     }
 
-    // Force admin role for the admin email
     const finalRole = normalizedEmail === ADMIN_EMAIL ? "admin" : role;
 
     const existingUser = await User.findOne({ email: normalizedEmail });
@@ -94,7 +92,7 @@ const register = async (req, res) => {
     const user = await User.create({
       name: name.trim(),
       email: normalizedEmail,
-      password, // hashed by pre-save hook
+      password,
       phone,
       role: finalRole,
     });
@@ -124,68 +122,8 @@ const register = async (req, res) => {
 };
 
 // =====================================================
-// NORMAL LOGIN
+// LOGIN
 // =====================================================
-// const login = async (req, res) => {
-//   try {
-//     const { email, password } = req.body;
-
-//     if (!email || !password) {
-//       return res.status(400).json({
-//         success: false,
-//         message: "Email and password are required",
-//       });
-//     }
-
-//     const normalizedEmail = email.toLowerCase().trim();
-
-//     const user = await User.findOne({ email: normalizedEmail });
-//     if (!user) {
-//       return res.status(401).json({
-//         success: false,
-//         message: "Invalid email or password",
-//       });
-//     }
-
-//     // Extra safety: prevent rogue admin accounts
-//     if (user.role === "admin" && normalizedEmail !== ADMIN_EMAIL) {
-//       return res.status(403).json({
-//         success: false,
-//         message: "Unauthorized admin account",
-//       });
-//     }
-
-//     const isMatch = await user.comparePassword(password);
-//     if (!isMatch) {
-//       return res.status(401).json({
-//         success: false,
-//         message: "Invalid email or password",
-//       });
-//     }
-
-//     const token = generateToken(user);
-
-//     return res.status(200).json({
-//       success: true,
-//       message: "Login successful",
-//       token,
-//       user: {
-//         id: user._id,
-//         _id: user._id,
-//         name: user.name,
-//         email: user.email,
-//         phone: user.phone,
-//         role: user.role,
-//       },
-//     });
-//   } catch (error) {
-//     console.error("LOGIN ERROR:", error);
-//     return res.status(500).json({
-//       success: false,
-//       message: error.message || "Login failed",
-//     });
-//   }
-// };
 const login = async (req, res) => {
   try {
     const { email, password } = req.body;
@@ -199,9 +137,8 @@ const login = async (req, res) => {
 
     const normalizedEmail = email.toLowerCase().trim();
 
-    // IMPORTANT: select password because it has select: false
     const user = await User.findOne({ email: normalizedEmail }).select(
-      "+password",
+      "+password"
     );
 
     if (!user) {
@@ -211,7 +148,6 @@ const login = async (req, res) => {
       });
     }
 
-    // Admin security check
     if (user.role === "admin" && normalizedEmail !== ADMIN_EMAIL) {
       return res.status(403).json({
         success: false,
@@ -251,6 +187,7 @@ const login = async (req, res) => {
     });
   }
 };
+
 // =====================================================
 // SEND LOGIN OTP
 // =====================================================
@@ -283,28 +220,28 @@ const sendLoginOTP = async (req, res) => {
     }
 
     const otp = generateOTP();
-    const otpExpires = new Date(Date.now() + 10 * 60 * 1000); // 10 min
+    const otpExpires = new Date(Date.now() + 10 * 60 * 1000);
 
     user.loginOtp = await hashOTP(otp);
     user.loginOtpExpires = otpExpires;
     await user.save();
 
-    await transporter.sendMail({
-      from: `"Clinic" <${process.env.EMAIL_USER}>`,
+    await sendEmail({
       to: normalizedEmail,
-      subject: "Your Clinic Login OTP",
+      subject: "Your Irene Medics Login OTP",
+      text: `Your login OTP is ${otp}. It is valid for 10 minutes.`,
       html: `
         <div style="font-family: Arial, sans-serif; max-width: 600px; margin: auto; padding: 30px; border: 1px solid #e5e7eb; border-radius: 16px;">
-          <h2 style="color:#2563eb;">Clinic Login Verification</h2>
+          <h2 style="color:#2563eb;">Irene Medics Login Verification</h2>
           <p>Hello ${user.name || "User"},</p>
-          <p>Use the following OTP to login to your Clinic account:</p>
+          <p>Use the following OTP to login to your account:</p>
           <div style="margin: 25px 0; padding: 20px; background: #eff6ff; border-radius: 12px; text-align: center;">
             <span style="font-size: 32px; font-weight: bold; letter-spacing: 8px; color: #2563eb;">${otp}</span>
           </div>
           <p>This OTP is valid for <strong>10 minutes</strong>.</p>
           <p style="color:#64748b;">If you did not request this login OTP, please ignore this email.</p>
           <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 25px 0;" />
-          <p style="font-size: 12px; color: #94a3b8;">🔒 Your information is securely protected.</p>
+          <p style="font-size: 12px; color: #94a3b8;">This is an automated email from Irene Medics Healthcare.</p>
         </div>
       `,
     });
@@ -346,19 +283,9 @@ const verifyLoginOTP = async (req, res) => {
       });
     }
 
-    // Select the hidden OTP fields
     const user = await User.findOne({ email: normalizedEmail }).select(
-      "+loginOtp +loginOtpExpires",
+      "+loginOtp +loginOtpExpires"
     );
-
-    // ========== DEBUG LOGS (put them here) ==========
-    console.log("===== DEBUG =====");
-    console.log("Email:", normalizedEmail);
-    console.log("User found:", !!user);
-    console.log("loginOtp:", user?.loginOtp);
-    console.log("loginOtpExpires:", user?.loginOtpExpires);
-    console.log("=================");
-    // ================================================
 
     if (!user) {
       return res.status(404).json({
@@ -393,7 +320,6 @@ const verifyLoginOTP = async (req, res) => {
       });
     }
 
-    // Admin safety check
     if (user.role === "admin" && normalizedEmail !== ADMIN_EMAIL) {
       return res.status(403).json({
         success: false,
@@ -401,7 +327,6 @@ const verifyLoginOTP = async (req, res) => {
       });
     }
 
-    // Clear OTP after successful use
     user.loginOtp = null;
     user.loginOtpExpires = null;
     await user.save();
@@ -429,6 +354,7 @@ const verifyLoginOTP = async (req, res) => {
     });
   }
 };
+
 // =====================================================
 // FORGOT PASSWORD
 // =====================================================
@@ -460,15 +386,15 @@ const forgotPassword = async (req, res) => {
     user.resetPasswordOTPExpires = otpExpires;
     await user.save();
 
-    await transporter.sendMail({
-      from: `"Clinic" <${process.env.EMAIL_USER}>`,
+    await sendEmail({
       to: normalizedEmail,
-      subject: "Password Reset OTP",
+      subject: "Password Reset OTP - Irene Medics",
+      text: `Your password reset OTP is ${otp}. It is valid for 10 minutes.`,
       html: `
         <div style="font-family: Arial, sans-serif; max-width: 600px; margin: auto; padding: 30px; border: 1px solid #e5e7eb; border-radius: 16px;">
           <h2 style="color:#2563eb;">Reset Your Password</h2>
           <p>Hello ${user.name || "User"},</p>
-          <p>We received a request to reset your Clinic password.</p>
+          <p>We received a request to reset your Irene Medics password.</p>
           <div style="margin: 25px 0; padding: 20px; background: #eff6ff; border-radius: 12px; text-align: center;">
             <span style="font-size: 32px; font-weight: bold; letter-spacing: 8px; color: #2563eb;">${otp}</span>
           </div>
@@ -515,9 +441,8 @@ const verifyForgotPasswordOTP = async (req, res) => {
       });
     }
 
-    // IMPORTANT: select the hidden OTP fields
     const user = await User.findOne({ email: normalizedEmail }).select(
-      "+resetPasswordOTP +resetPasswordOTPExpires",
+      "+resetPasswordOTP +resetPasswordOTPExpires"
     );
 
     if (!user) {
@@ -590,9 +515,8 @@ const resetPassword = async (req, res) => {
     const normalizedEmail = email.toLowerCase().trim();
     const cleanOtp = otp.toString().trim();
 
-    // IMPORTANT: select the hidden OTP fields
     const user = await User.findOne({ email: normalizedEmail }).select(
-      "+resetPasswordOTP +resetPasswordOTPExpires",
+      "+resetPasswordOTP +resetPasswordOTPExpires"
     );
 
     if (!user) {
@@ -628,7 +552,6 @@ const resetPassword = async (req, res) => {
       });
     }
 
-    // Update password
     user.password = password;
     user.resetPasswordOTP = null;
     user.resetPasswordOTPExpires = null;
@@ -646,61 +569,10 @@ const resetPassword = async (req, res) => {
     });
   }
 };
+
 // =====================================================
-// CHANGE PASSWORD (for logged-in users)
+// CHANGE PASSWORD
 // =====================================================
-// const changePassword = async (req, res) => {
-//   try {
-//     const { currentPassword, newPassword } = req.body;
-
-//     if (!currentPassword || !newPassword) {
-//       return res.status(400).json({
-//         success: false,
-//         message: "Current password and new password are required",
-//       });
-//     }
-
-//     if (newPassword.length < 6) {
-//       return res.status(400).json({
-//         success: false,
-//         message: "New password must be at least 6 characters",
-//       });
-//     }
-
-//     // req.user is set by the protect middleware
-//     const user = await User.findById(req.user.id);
-//     if (!user) {
-//       return res.status(404).json({
-//         success: false,
-//         message: "User not found",
-//       });
-//     }
-
-//     // Verify current password
-//     const isMatch = await user.comparePassword(currentPassword);
-//     if (!isMatch) {
-//       return res.status(401).json({
-//         success: false,
-//         message: "Current password is incorrect",
-//       });
-//     }
-
-//     // Update password (pre-save hook will hash it)
-//     user.password = newPassword;
-//     await user.save();
-
-//     return res.status(200).json({
-//       success: true,
-//       message: "Password changed successfully",
-//     });
-//   } catch (error) {
-//     console.error("CHANGE PASSWORD ERROR:", error);
-//     return res.status(500).json({
-//       success: false,
-//       message: "Unable to change password",
-//     });
-//   }
-// };
 const changePassword = async (req, res) => {
   try {
     const { currentPassword, newPassword } = req.body;
@@ -719,7 +591,6 @@ const changePassword = async (req, res) => {
       });
     }
 
-    // IMPORTANT: select password because it has select: false
     const user = await User.findById(req.user.id).select("+password");
 
     if (!user) {
@@ -729,7 +600,6 @@ const changePassword = async (req, res) => {
       });
     }
 
-    // Verify current password
     const isMatch = await user.comparePassword(currentPassword);
     if (!isMatch) {
       return res.status(401).json({
@@ -738,7 +608,6 @@ const changePassword = async (req, res) => {
       });
     }
 
-    // Update password (pre-save hook will hash it)
     user.password = newPassword;
     await user.save();
 
@@ -754,8 +623,9 @@ const changePassword = async (req, res) => {
     });
   }
 };
+
 // =====================================================
-// EXPORT
+// EXPORTS
 // =====================================================
 module.exports = {
   register,
