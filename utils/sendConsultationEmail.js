@@ -19,9 +19,15 @@ const sendConsultationEmails = async ({
       finalRoomId = `VC-${id}`;
     }
 
-    const frontendUrl = process.env.FRONTEND_URL || "https://www.irenemedics.com";
-    const videoLink = finalRoomId
-      ? `${frontendUrl}/consult/${finalRoomId}?type=video`
+    const frontendUrl =
+      process.env.FRONTEND_URL || "https://www.irenemedics.com";
+
+    // Correct dashboard routes
+    const patientVideoLink = finalRoomId
+      ? `${frontendUrl}/dashboard/patient/consult/${finalRoomId}?type=video`
+      : "";
+    const doctorVideoLink = finalRoomId
+      ? `${frontendUrl}/dashboard/doctor/consult/${finalRoomId}?type=video`
       : "";
 
     let patientTypeBlock = "";
@@ -31,19 +37,28 @@ const sendConsultationEmails = async ({
       patientTypeBlock = `
         <p style="margin: 16px 0 8px;"><strong>Video Room ID:</strong> ${finalRoomId}</p>
         <p style="margin: 0;">
-          <a href="${videoLink}"
+          <a href="${patientVideoLink}"
              style="display: inline-block; background: #2563eb; color: white; padding: 12px 20px;
                     border-radius: 8px; text-decoration: none; font-weight: bold;">
             Join Video Consultation
           </a>
         </p>
         <p style="color: #64748b; font-size: 14px; margin-top: 12px;">
-          Please join 5 minutes before the scheduled time.
+          Please join 5 minutes before the scheduled time. You must be logged in as the patient.
         </p>
       `;
       doctorTypeBlock = `
         <p><strong>Room ID:</strong> ${finalRoomId}</p>
-        <p><strong>Video Link:</strong> <a href="${videoLink}">${videoLink}</a></p>
+        <p style="margin: 12px 0 0;">
+          <a href="${doctorVideoLink}"
+             style="display: inline-block; background: #2563eb; color: white; padding: 12px 20px;
+                    border-radius: 8px; text-decoration: none; font-weight: bold;">
+            Join Video Consultation
+          </a>
+        </p>
+        <p style="color: #64748b; font-size: 14px; margin-top: 12px;">
+          ${doctorVideoLink}
+        </p>
       `;
     } else if (consultationType === "audio") {
       const phone = doctorPhone || "Will be shared soon";
@@ -56,7 +71,9 @@ const sendConsultationEmails = async ({
       `;
       doctorTypeBlock = `<p><strong>Audio Number:</strong> ${phone}</p>`;
     } else if (consultationType === "clinic") {
-      const address = clinicAddress || "Please check the doctor profile or contact the clinic.";
+      const address =
+        clinicAddress ||
+        "Please check the doctor profile or contact the clinic.";
       patientTypeBlock = `
         <p style="margin: 16px 0 8px;"><strong>Clinic Address:</strong></p>
         <p style="margin: 0; font-weight: 500;">${address}</p>
