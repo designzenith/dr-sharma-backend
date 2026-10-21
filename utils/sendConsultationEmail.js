@@ -1,4 +1,4 @@
-const transporter = require("../config/mailer");
+const { sendEmail } = require("../config/mailer");
 
 const sendConsultationEmails = async ({
   patientName,
@@ -13,128 +13,149 @@ const sendConsultationEmails = async ({
   roomId = null,
 }) => {
   try {
-    // Generate roomId for video if not provided
     let finalRoomId = roomId;
     if (consultationType === "video" && !finalRoomId) {
       const id = Math.floor(100000 + Math.random() * 900000);
       finalRoomId = `VC-${id}`;
     }
 
-    // ========== PATIENT EMAIL ==========
-    let patientHtml = `
-      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; border: 1px solid #e2e8f0; border-radius: 12px; overflow: hidden;">
-        <div style="background: #059669; color: white; padding: 24px; text-align: center;">
-          <h1 style="margin: 0; font-size: 24px;">IreneMedics</h1>
-          <p style="margin: 6px 0 0; opacity: 0.9;">Healthcare & Appointment Services</p>
-        </div>
-        
-        <div style="padding: 32px; background: #ffffff;">
-          <h2 style="color: #0f172a; margin-top: 0;">Appointment Confirmed ✅</h2>
-          <p style="color: #334155;">Hello <strong>${patientName}</strong>,</p>
-          <p style="color: #334155;">Your appointment has been confirmed successfully.</p>
-          
-          <div style="background: #f8fafc; padding: 20px; border-radius: 10px; margin: 24px 0; border: 1px solid #e2e8f0;">
-            <p style="margin: 8px 0;"><strong>Doctor:</strong> ${doctorName}</p>
-            <p style="margin: 8px 0;"><strong>Date:</strong> ${appointmentDate}</p>
-            <p style="margin: 8px 0;"><strong>Time:</strong> ${appointmentTime}</p>
-            <p style="margin: 8px 0;"><strong>Consultation Type:</strong> ${consultationType.toUpperCase()}</p>
-    `;
+    const frontendUrl = process.env.FRONTEND_URL || "https://www.irenemedics.com";
+    const videoLink = finalRoomId
+      ? `${frontendUrl}/consult/${finalRoomId}?type=video`
+      : "";
+
+    let patientTypeBlock = "";
+    let doctorTypeBlock = "";
 
     if (consultationType === "video") {
-      const videoLink = `https://www.irenemedics.com/video/${finalRoomId}`;
-      patientHtml += `
-            <p style="margin: 16px 0 8px;"><strong>Video Room Link:</strong></p>
-            <p style="margin: 0;">
-              <a href="${videoLink}" 
-                 style="display: inline-block; background: #059669; color: white; padding: 12px 20px; 
-                        border-radius: 8px; text-decoration: none; font-weight: bold;">
-                Join Video Consultation
-              </a>
-            </p>
-            <p style="color: #64748b; font-size: 14px; margin-top: 12px;">
-              Please join 5 minutes before the scheduled time.
-            </p>
+      patientTypeBlock = `
+        <p style="margin: 16px 0 8px;"><strong>Video Room ID:</strong> ${finalRoomId}</p>
+        <p style="margin: 0;">
+          <a href="${videoLink}"
+             style="display: inline-block; background: #2563eb; color: white; padding: 12px 20px;
+                    border-radius: 8px; text-decoration: none; font-weight: bold;">
+            Join Video Consultation
+          </a>
+        </p>
+        <p style="color: #64748b; font-size: 14px; margin-top: 12px;">
+          Please join 5 minutes before the scheduled time.
+        </p>
+      `;
+      doctorTypeBlock = `
+        <p><strong>Room ID:</strong> ${finalRoomId}</p>
+        <p><strong>Video Link:</strong> <a href="${videoLink}">${videoLink}</a></p>
       `;
     } else if (consultationType === "audio") {
-      patientHtml += `
-            <p style="margin: 16px 0 8px;"><strong>Doctor Phone Number:</strong></p>
-            <p style="font-size: 18px; font-weight: bold; color: #059669; margin: 0;">
-              ${doctorPhone || "Will be shared soon"}
-            </p>
-            <p style="color: #64748b; font-size: 14px; margin-top: 12px;">
-              The doctor will call you at the scheduled time.
-            </p>
+      const phone = doctorPhone || "Will be shared soon";
+      patientTypeBlock = `
+        <p style="margin: 16px 0 8px;"><strong>Audio Call Number:</strong></p>
+        <p style="font-size: 18px; font-weight: bold; color: #2563eb; margin: 0;">${phone}</p>
+        <p style="color: #64748b; font-size: 14px; margin-top: 12px;">
+          The doctor will call you at the scheduled time.
+        </p>
       `;
+      doctorTypeBlock = `<p><strong>Audio Number:</strong> ${phone}</p>`;
     } else if (consultationType === "clinic") {
-      patientHtml += `
-            <p style="margin: 16px 0 8px;"><strong>Clinic Address:</strong></p>
-            <p style="margin: 0; font-weight: 500;">${clinicAddress || "Will be shared soon"}</p>
-            <p style="color: #64748b; font-size: 14px; margin-top: 12px;">
-              Please arrive 10 minutes early.
-            </p>
+      const address = clinicAddress || "Please check the doctor profile or contact the clinic.";
+      patientTypeBlock = `
+        <p style="margin: 16px 0 8px;"><strong>Clinic Address:</strong></p>
+        <p style="margin: 0; font-weight: 500;">${address}</p>
+        <p style="color: #64748b; font-size: 14px; margin-top: 12px;">
+          Please arrive 10 minutes early.
+        </p>
       `;
+      doctorTypeBlock = `<p><strong>Clinic Address:</strong> ${address}</p>`;
     }
 
-    patientHtml += `
-          </div>
-          
-          <p style="color: #334155;">Your appointment is now confirmed. Please join on time.</p>
-          
-          <p style="margin-top: 32px; color: #94a3b8; font-size: 13px; border-top: 1px solid #e2e8f0; padding-top: 20px;">
-            This is an automated email from IreneMedics.<br>
-            Please do not reply directly to this email.
-          </p>
-        </div>
-      </div>
-    `;
-
-    // Send to Patient
     if (patientEmail) {
-      await transporter.sendMail({
-        from: `"IreneMedics" <${process.env.EMAIL_USER}>`,
+      const patientHtml = `
+<!DOCTYPE html>
+<html>
+<body style="margin:0;padding:0;background:#f3f4f6;font-family:Arial,Helvetica,sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="padding:30px 15px;">
+    <tr><td align="center">
+      <table width="100%" style="max-width:600px;background:#fff;border:1px solid #e5e7eb;border-radius:12px;overflow:hidden;">
+        <tr>
+          <td style="background:#2563eb;padding:28px 30px;text-align:center;">
+            <h1 style="margin:0;color:#fff;font-size:24px;">Irene Medics Healthcare</h1>
+            <p style="margin:8px 0 0;color:#dbeafe;font-size:14px;">Healthcare &amp; Appointment Services</p>
+          </td>
+        </tr>
+        <tr>
+          <td style="padding:32px 30px;">
+            <h2 style="margin:0 0 16px;color:#111827;">Appointment Confirmed</h2>
+            <p style="color:#374151;">Hello <strong>${patientName || "Patient"}</strong>,</p>
+            <p style="color:#374151;">Your appointment has been confirmed successfully after payment.</p>
+            <div style="background:#f8fafc;padding:20px;border-radius:10px;margin:24px 0;border:1px solid #e2e8f0;">
+              <p style="margin:8px 0;"><strong>Doctor:</strong> ${doctorName || "Doctor"}</p>
+              <p style="margin:8px 0;"><strong>Date:</strong> ${appointmentDate || ""}</p>
+              <p style="margin:8px 0;"><strong>Time:</strong> ${appointmentTime || ""}</p>
+              <p style="margin:8px 0;"><strong>Consultation:</strong> ${(consultationType || "").toUpperCase()}</p>
+              ${patientTypeBlock}
+            </div>
+            <p style="color:#374151;">Please join on time.</p>
+          </td>
+        </tr>
+        <tr>
+          <td style="padding:20px 30px;background:#f9fafb;border-top:1px solid #e5e7eb;text-align:center;">
+            <p style="margin:0;color:#6b7280;font-size:13px;">This is an automated email from Irene Medics Healthcare.</p>
+          </td>
+        </tr>
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>`;
+
+      await sendEmail({
         to: patientEmail,
-        subject: `Appointment Confirmed - ${consultationType.toUpperCase()} Consultation`,
+        subject: `Appointment Confirmed - ${(consultationType || "").toUpperCase()} Consultation`,
+        text: `Hello ${patientName}, your ${consultationType} appointment is confirmed. Date: ${appointmentDate}, Time: ${appointmentTime}`,
         html: patientHtml,
       });
-      console.log("✅ Patient email sent to:", patientEmail);
+      console.log("✅ Patient consultation email sent to:", patientEmail);
     }
 
-    // ========== DOCTOR EMAIL ==========
     if (doctorEmail) {
       const doctorHtml = `
-        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; border: 1px solid #e2e8f0; border-radius: 12px; overflow: hidden;">
-          <div style="background: #059669; color: white; padding: 24px; text-align: center;">
-            <h1 style="margin: 0;">New Appointment Confirmed</h1>
-          </div>
-          <div style="padding: 32px;">
-            <p>Hello Dr. <strong>${doctorName}</strong>,</p>
-            <p>A new appointment has been confirmed after successful payment.</p>
-            
-            <div style="background: #f8fafc; padding: 20px; border-radius: 10px; margin: 20px 0;">
-              <p><strong>Patient:</strong> ${patientName}</p>
-              <p><strong>Date:</strong> ${appointmentDate}</p>
-              <p><strong>Time:</strong> ${appointmentTime}</p>
-              <p><strong>Type:</strong> ${consultationType.toUpperCase()}</p>
-              ${
-                consultationType === "video"
-                  ? `<p><strong>Room ID:</strong> ${finalRoomId}</p>
-                     <p><strong>Video Link:</strong> https://www.irenemedics.com/video/${finalRoomId}</p>`
-                  : ""
-              }
+<!DOCTYPE html>
+<html>
+<body style="margin:0;padding:0;background:#f3f4f6;font-family:Arial,Helvetica,sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="padding:30px 15px;">
+    <tr><td align="center">
+      <table width="100%" style="max-width:600px;background:#fff;border:1px solid #e5e7eb;border-radius:12px;overflow:hidden;">
+        <tr>
+          <td style="background:#2563eb;padding:28px 30px;text-align:center;">
+            <h1 style="margin:0;color:#fff;font-size:22px;">New Appointment Confirmed</h1>
+          </td>
+        </tr>
+        <tr>
+          <td style="padding:32px 30px;">
+            <p>Hello Dr. <strong>${doctorName || "Doctor"}</strong>,</p>
+            <p>A patient has paid. The appointment is <strong>auto-confirmed</strong>.</p>
+            <div style="background:#f8fafc;padding:20px;border-radius:10px;margin:20px 0;border:1px solid #e2e8f0;">
+              <p><strong>Patient:</strong> ${patientName || "Patient"}</p>
+              <p><strong>Date:</strong> ${appointmentDate || ""}</p>
+              <p><strong>Time:</strong> ${appointmentTime || ""}</p>
+              <p><strong>Type:</strong> ${(consultationType || "").toUpperCase()}</p>
+              ${doctorTypeBlock}
             </div>
-            
-            <p style="color: #64748b; font-size: 14px;">Please be ready at the scheduled time.</p>
-          </div>
-        </div>
-      `;
+            <p style="color:#64748b;font-size:14px;">Please be ready at the scheduled time.</p>
+          </td>
+        </tr>
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>`;
 
-      await transporter.sendMail({
-        from: `"IreneMedics" <${process.env.EMAIL_USER}>`,
+      await sendEmail({
         to: doctorEmail,
-        subject: `New ${consultationType.toUpperCase()} Appointment Confirmed`,
+        subject: `New ${(consultationType || "").toUpperCase()} Appointment Confirmed`,
+        text: `New paid appointment. Patient: ${patientName}, Date: ${appointmentDate}, Time: ${appointmentTime}`,
         html: doctorHtml,
       });
-      console.log("✅ Doctor email sent to:", doctorEmail);
+      console.log("✅ Doctor consultation email sent to:", doctorEmail);
     }
 
     return finalRoomId;
