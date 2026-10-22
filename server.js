@@ -7,6 +7,7 @@ const dns = require("dns");
 const path = require("path");
 const { Server } = require("socket.io");
 const passport = require("passport");
+
 require("./config/mailer");   // force SMTP verify on boot
 require("./config/passport");
 require("./config/redis");
@@ -163,6 +164,11 @@ app.use("/api/profile", require("./routes/profileRoutes"));
 
 // Consultation
 app.use("/api/consult", require("./routes/consult"));
+
+// contact and corporate enquiry
+const formRoutes = require("./routes/formRoutes");
+
+app.use("/api", formRoutes);
 
 // Upload
 const uploadRoutes = require("./routes/uploadRoutes");
