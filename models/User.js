@@ -45,11 +45,18 @@ const userSchema = new mongoose.Schema(
     // ==========================================
     // Phone
     // ==========================================
+    // ==========================================
+    // Phone
+    // ==========================================
     phone: {
       type: String,
       trim: true,
+      required: [true, "Phone number is required"], // remove this line if phone is optional
+      match: [
+        /^\+?[1-9]\d{1,14}$/,
+        "Please enter a valid phone number with country code (e.g. +919876543210)",
+      ],
     },
-
     // ==========================================
     // FORGOT PASSWORD OTP (hashed)
     // ==========================================
