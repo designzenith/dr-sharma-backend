@@ -8,13 +8,13 @@ const CorporateEnquiry = require("../models/CorporateEnquiry");
 // ======================
 const submitCorporateEnquiry = async (req, res) => {
   try {
-    const { organization, firstName, lastName, email, employees, hrContact } =
+    const { organization, firstName, lastName, email, number, employees, hrContact } =
       req.body;
 
-    if (!organization || !firstName || !lastName || !email) {
+    if (!organization || !firstName || !lastName || !email || !number) {
       return res.status(400).json({
         success: false,
-        message: "Organization, name and email are required",
+        message: "Organization, name, email and phone number are required",
       });
     }
 
@@ -24,6 +24,7 @@ const submitCorporateEnquiry = async (req, res) => {
       firstName,
       lastName,
       email,
+      phone: number,
       employees: employees || undefined,
       hrContact: hrContact || undefined,
     });
@@ -41,6 +42,7 @@ New corporate enquiry
 Organization: ${organization}
 Name: ${firstName} ${lastName}
 Email: ${email}
+Phone Number: ${number}
 Company size: ${employees || "Not specified"}
 HR contact: ${hrContact || "Not specified"}
 `;
@@ -54,6 +56,7 @@ HR contact: ${hrContact || "Not specified"}
     <tr><td style="padding:8px 0; color:#64748b; width:140px;">Organization</td><td style="padding:8px 0; font-weight:600;">${organization}</td></tr>
     <tr><td style="padding:8px 0; color:#64748b;">Name</td><td style="padding:8px 0; font-weight:600;">${firstName} ${lastName}</td></tr>
     <tr><td style="padding:8px 0; color:#64748b;">Email</td><td style="padding:8px 0; font-weight:600;">${email}</td></tr>
+    <tr><td style="padding:8px 0; color:#64748b;">Phone Number</td><td style="padding:8px 0; font-weight:600;">${number}</td></tr>
     <tr><td style="padding:8px 0; color:#64748b;">Company size</td><td style="padding:8px 0;">${employees || "Not specified"}</td></tr>
     <tr><td style="padding:8px 0; color:#64748b;">HR contact</td><td style="padding:8px 0;">${hrContact || "Not specified"}</td></tr>
   </table>
@@ -74,6 +77,7 @@ Here are the details you submitted:
 Organization: ${organization}
 Name: ${firstName} ${lastName}
 Email: ${email}
+Phone: ${number}
 Company size: ${employees || "Not specified"}
 HR contact: ${hrContact || "Not specified"}
 
@@ -105,6 +109,10 @@ Our team will check your organization’s coverage and get back to you shortly.
     <tr>
       <td style="padding:8px 0; color:#64748b;">Email</td>
       <td style="padding:8px 0; font-weight:600;">${email}</td>
+    </tr>
+    <tr>
+      <td style="padding:8px 0; color:#64748b;">Phone Number</td>
+      <td style="padding:8px 0; font-weight:600;">${number}</td>
     </tr>
     <tr>
       <td style="padding:8px 0; color:#64748b;">Company size</td>
