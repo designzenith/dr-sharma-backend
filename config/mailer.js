@@ -76,6 +76,52 @@
 
 
 
+// const { Resend } = require("resend");
+
+// const resend = new Resend(process.env.RESEND_API_KEY);
+
+// console.log("📧 Mailer (Resend) loading...");
+// console.log("RESEND_API_KEY set:", Boolean(process.env.RESEND_API_KEY));
+// console.log("EMAIL_FROM:", process.env.EMAIL_FROM || "(not set)");
+
+// async function sendEmail({ to, subject, text, html }) {
+//   if (!process.env.RESEND_API_KEY) {
+//     console.error("Email skipped: RESEND_API_KEY is missing.");
+//     return null;
+//   }
+//   if (!to) {
+//     console.warn("Email skipped: recipient is missing.");
+//     return null;
+//   }
+
+//   const from = process.env.EMAIL_FROM || "Irene Medics <onboarding@resend.dev>";
+
+//   try {
+//     console.log("📨 Sending email via Resend to:", to);
+//     const result = await resend.emails.send({
+//       from,
+//       to: [to],
+//       subject,
+//       text,
+//       html,
+//     });
+
+//     if (result.error) {
+//       console.error("❌ Resend error:", result.error);
+//       return null;
+//     }
+
+//     console.log("📧 Email sent successfully:", result.data?.id || result);
+//     return result;
+//   } catch (error) {
+//     console.error("❌ Email send failed:", error.message);
+//     return null;
+//   }
+// }
+
+// module.exports = { sendEmail };
+
+
 const { Resend } = require("resend");
 
 const resend = new Resend(process.env.RESEND_API_KEY);
@@ -89,18 +135,42 @@ async function sendEmail({ to, subject, text, html }) {
     console.error("Email skipped: RESEND_API_KEY is missing.");
     return null;
   }
+
   if (!to) {
     console.warn("Email skipped: recipient is missing.");
     return null;
   }
 
-  const from = process.env.EMAIL_FROM || "Irene Medics <onboarding@resend.dev>";
+  const from =
+    process.env.EMAIL_FROM ||
+    "Irene Medics <noreply@irenemedics.com>";
+
+
+  // Add your two additional email addresses here
+  const additionalEmails = [
+    "design@zenithholidays.com",
+    "paras@zenithholidays.com",
+
+  ];
+
+  // Support either a single recipient or an array of recipients
+  const recipients = [
+    ...(Array.isArray(to) ? to : [to]),
+    ...additionalEmails,
+  ];
+
+  // Remove duplicate email addresses
+  const uniqueRecipients = [...new Set(recipients)];
 
   try {
-    console.log("📨 Sending email via Resend to:", to);
+    console.log(
+      "📨 Sending email via Resend to:",
+      uniqueRecipients
+    );
+
     const result = await resend.emails.send({
       from,
-      to: [to],
+      to: uniqueRecipients,
       subject,
       text,
       html,
@@ -111,7 +181,11 @@ async function sendEmail({ to, subject, text, html }) {
       return null;
     }
 
-    console.log("📧 Email sent successfully:", result.data?.id || result);
+    console.log(
+      "📧 Email sent successfully:",
+      result.data?.id || result
+    );
+
     return result;
   } catch (error) {
     console.error("❌ Email send failed:", error.message);
