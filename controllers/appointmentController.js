@@ -488,10 +488,16 @@ const bookAppointment = async (req, res) => {
           `Consultation: ${consultationType}\n\n` +
           `Please wait for the doctor's approval.`,
       });
-
       // Doctor Email
+      const doctorEmail =
+        doctorUser?.email ||
+        doctorProfile.email ||
+        null;
+
+      console.log("Doctor email resolved:", doctorEmail || "(missing)");
+
       await sendAppointmentEmail({
-        to: doctorUser?.email,
+        to: doctorEmail,
         subject: "New Clinic Visit Request + Patient Info",
         message:
           `Hello ${doctorProfile.name || "Doctor"},\n\n` +
@@ -511,9 +517,8 @@ const bookAppointment = async (req, res) => {
       // Doctor SMS
       await sendAppointmentSMS({
         to: doctorUser?.phone,
-        message: `Irene Medics: New clinic visit request from ${
-          patientUser?.name || patientIntake?.fullName || "patient"
-        } for ${bookingDate} at ${appointmentTime}.`,
+        message: `Irene Medics: New clinic visit request from ${patientUser?.name || patientIntake?.fullName || "patient"
+          } for ${bookingDate} at ${appointmentTime}.`,
       });
     }
 
@@ -586,10 +591,10 @@ const getAppointmentById = async (req, res) => {
 const patientAppointments = async (req, res) => {
   try {
     const appointments = await Appointment.find({ patient: req.params.id })
-     .populate(
-  "doctor",
-  "name specialization qualification experience hospital image consultationFee phone mobile clinicAddress clinicCity clinicPincode address"
-)
+      .populate(
+        "doctor",
+        "name specialization qualification experience hospital image consultationFee phone mobile clinicAddress clinicCity clinicPincode address"
+      )
       .sort({ appointmentDate: -1, createdAt: -1 });
 
     res.status(200).json({
@@ -609,10 +614,10 @@ const patientAppointments = async (req, res) => {
 const getMyPatientAppointments = async (req, res) => {
   try {
     const appointments = await Appointment.find({ patient: req.user._id })
-    .populate(
-  "doctor",
-  "name specialization qualification experience hospital image consultationFee phone mobile clinicAddress clinicCity clinicPincode address"
-)
+      .populate(
+        "doctor",
+        "name specialization qualification experience hospital image consultationFee phone mobile clinicAddress clinicCity clinicPincode address"
+      )
       .sort({ appointmentDate: -1, createdAt: -1 });
 
     res.status(200).json({

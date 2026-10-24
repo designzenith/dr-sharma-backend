@@ -26,7 +26,7 @@ const auth = async (req, res, next) => {
     // Verify JWT
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
-    console.log("Decoded JWT:", decoded);
+    console.log("Decoded JWT:", decoded);  
 
     // Support both id and _id (most common issue)
     const userId = decoded.id || decoded._id || decoded.userId;
